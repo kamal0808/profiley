@@ -65,14 +65,14 @@ func saveSites(_ sites: [String: String]) {
     }
 }
 
-// Anonymous usage count on TelemetryDeck: "install" once, then "active" at most once a day,
-// with a random ID and the app version, nothing else.
+// Anonymous usage count on PostHog: "app_install" once, then "app_active" at most once a day,
+// with a random ID and the app version, no person profile.
 // Off: `defaults write com.kamalkhatwani.profiley analytics -bool false`.
-let telemetryAppID = ""
+let posthogKey = ""
 
 func ping() {
     let d = UserDefaults.standard
-    guard !telemetryAppID.isEmpty, d.object(forKey: "analytics") as? Bool != false else { return }
+    guard !posthogKey.isEmpty, d.object(forKey: "analytics") as? Bool != false else { return }
     let f = DateFormatter()
     f.dateFormat = "yyyy-MM-dd"
     let today = f.string(from: Date()), last = d.string(forKey: "pingDay")
@@ -81,14 +81,14 @@ func ping() {
     let id = d.string(forKey: "pingID") ?? UUID().uuidString
     d.set(id, forKey: "pingID")
     let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
-    let signal: [[String: Any]] = [["appID": telemetryAppID, "clientUser": id, "type": last == nil ? "install" : "active",
-                                    "payload": ["TelemetryDeck.AppInfo.version": version]]]
-    guard let body = try? JSONSerialization.data(withJSONObject: signal), let json = String(data: body, encoding: .utf8) else { return }
+    let event: [String: Any] = ["api_key": posthogKey, "event": last == nil ? "app_install" : "app_active", "distinct_id": id,
+                                "properties": ["app": "profiley", "$app_version": version, "$process_person_profile": false]]
+    guard let body = try? JSONSerialization.data(withJSONObject: event), let json = String(data: body, encoding: .utf8) else { return }
     // curl, not URLSession: Profiley often quits right after opening a link, and curl outlives it.
     let t = Process()
     t.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-    t.arguments = ["-s", "-m", "10", "-o", "/dev/null", "-H", "Content-Type: application/json; charset=utf-8",
-                   "-d", json, "https://nom.telemetrydeck.com/v2/"]
+    t.arguments = ["-s", "-m", "10", "-o", "/dev/null", "-H", "Content-Type: application/json",
+                   "-d", json, "https://us.i.posthog.com/i/v0/e/"]
     try? t.run()
 }
 
