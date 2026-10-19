@@ -24,8 +24,10 @@ const popPoint = (x: number, y: number) => ({
 
 const LINK1 = { x: 330, y: 330 };
 const LINK2 = { x: 330, y: 436 };
+const LINK3 = { x: 300, y: 384 };
 const TICK = popPoint(104, 463);
 const WORK = popPoint(568, 247);
+const PERSONAL = popPoint(336, 247);
 
 // Cursor path: [frame, x, y]
 const PATH: [number, number, number][] = [
@@ -39,9 +41,14 @@ const PATH: [number, number, number][] = [
   [215, 1180, 760],
   [250, LINK2.x, LINK2.y],
   [300, LINK2.x, LINK2.y],
-  [330, 1180, 760],
+  [340, 1180, 760],
+  [372, LINK3.x, LINK3.y],
+  [384, LINK3.x, LINK3.y],
+  [414, PERSONAL.x, PERSONAL.y],
+  [428, PERSONAL.x, PERSONAL.y],
+  [500, 1180, 760],
 ];
-const CLICKS = [46, 98, 144, 256];
+const CLICKS = [46, 98, 144, 256, 378, 422];
 
 const ease = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
@@ -128,7 +135,19 @@ const Chat: React.FC<{ second: number }> = ({ second }) => (
   </div>
 );
 
-const Browser: React.FC<{ show: number; title: string; path: string }> = ({ show, title, path }) => (
+const WhatsApp: React.FC<{ show: number }> = ({ show }) => (
+  <div style={{ position: "absolute", left: 100, top: 250, width: 560, background: "#fff", borderRadius: 22, border: "1px solid #E3E5EA", boxShadow: "0 10px 40px rgba(12,13,16,.08)", overflow: "hidden", fontFamily: FONT, color: INK, opacity: show, transform: `translateY(${(1 - show) * 14}px)` }}>
+    <div style={{ background: "#1F7A5C", color: "#fff", padding: "16px 26px", fontSize: 18, fontWeight: 600 }}>WhatsApp · Rahul</div>
+    <div style={{ background: "#EFEAE2", padding: "22px 26px 26px" }}>
+      <div style={{ background: "#fff", borderRadius: 14, padding: "12px 16px", display: "inline-block", boxShadow: "0 1px 1px rgba(0,0,0,.08)" }}>
+        <div style={{ fontSize: 19 }}>Watch this before Saturday</div>
+        <div style={{ fontSize: 19, marginTop: 6, color: "#1D63D6", textDecoration: "underline" }}>youtube.com/watch?v=trip-vlog</div>
+      </div>
+    </div>
+  </div>
+);
+
+const Browser: React.FC<{ show: number; title: string; path: string; profile?: "Work" | "Personal" }> = ({ show, title, path, profile = "Work" }) => (
   <div
     style={{
       position: "absolute",
@@ -151,17 +170,29 @@ const Browser: React.FC<{ show: number; title: string; path: string }> = ({ show
       ))}
       <div style={{ marginLeft: 12, background: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 15, color: INK, maxWidth: 260, whiteSpace: "nowrap", overflow: "hidden" }}>{title}</div>
       <div style={{ flex: 1, background: "#fff", borderRadius: 18, padding: "8px 16px", fontSize: 15, color: MUTED }}>{path}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: LIME, borderRadius: 18, padding: "4px 12px 4px 4px", fontSize: 15, fontWeight: 600, color: INK }}>
-        <Img src={staticFile("work.png")} style={{ width: 28, height: 28, borderRadius: 14 }} />
-        Work
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: profile === "Work" ? LIME : "#BFE6DF", borderRadius: 18, padding: "4px 12px 4px 4px", fontSize: 15, fontWeight: 600, color: INK }}>
+        <Img src={staticFile(profile === "Work" ? "work.png" : "personal.png")} style={{ width: 28, height: 28, borderRadius: 14 }} />
+        {profile}
       </div>
     </div>
     <div style={{ background: "#F1F3F4", height: 542, display: "flex", justifyContent: "center", paddingTop: 30 }}>
       <div style={{ width: 560, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.12)", padding: 48 }}>
-        <div style={{ fontSize: 30, fontWeight: 700, color: INK, marginBottom: 24 }}>{title.split(" – ")[0]}</div>
-        {[100, 92, 96, 70, 0, 88, 94, 60].map((w, i) => (
-          <div key={i} style={{ height: 12, width: `${w}%`, background: "#E6E8EC", borderRadius: 6, marginBottom: w ? 16 : 30 }} />
-        ))}
+        {profile === "Personal" ? (
+          <>
+            <div style={{ height: 262, borderRadius: 12, background: "#16171B", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+              <svg width="64" height="64" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#fff" /></svg>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: INK, marginBottom: 14 }}>{title.split(" – ")[0]}</div>
+            <div style={{ height: 12, width: "60%", background: "#E6E8EC", borderRadius: 6 }} />
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 30, fontWeight: 700, color: INK, marginBottom: 24 }}>{title.split(" – ")[0]}</div>
+            {[100, 92, 96, 70, 0, 88, 94, 60].map((w, i) => (
+              <div key={i} style={{ height: 12, width: `${w}%`, background: "#E6E8EC", borderRadius: 6, marginBottom: w ? 16 : 30 }} />
+            ))}
+          </>
+        )}
       </div>
     </div>
   </div>
@@ -183,12 +214,24 @@ export const ProfileyDemo: React.FC = () => {
   const browser1 = interpolate(f, [150, 164, 205, 218], [0, 1, 1, 0], ease);
   const second = interpolate(f, [214, 228], [0, 1], ease);
   const browser2 = interpolate(f, [260, 272, 318, 330], [0, 1, 1, 0], ease);
+  const chatShow = interpolate(f, [330, 342], [1, 0], ease);
+  const waShow = interpolate(f, [338, 352, 500, 515], [0, 1, 1, 0], ease);
+  const pop3 = f < 382 ? 0 : spring({ frame: f - 382, fps, config: { damping: 16 } }) * interpolate(f, [424, 434], [1, 0], ease);
+  const browser3 = interpolate(f, [426, 440, 500, 515], [0, 1, 1, 0], ease);
   const fadeIn = interpolate(f, [0, 8], [0, 1], ease);
   const cap = (a: number, b: number) => interpolate(f, [a, a + 8, b - 8, b], [0, 1, 1, 0], ease);
 
   return (
     <AbsoluteFill style={{ background: "#F5F6F8", opacity: fadeIn }}>
-      <Chat second={second} />
+      {chatShow > 0 && <div style={{ opacity: chatShow }}><Chat second={second} /></div>}
+      {waShow > 0 && <WhatsApp show={waShow} />}
+      {pop3 > 0 && (
+        <Img
+          src={staticFile("popup-yt.png")}
+          style={{ position: "absolute", left: POP.left, top: POP.top, width: POP.w, opacity: pop3, transform: `scale(${0.9 + 0.1 * pop3})`, transformOrigin: "50% 40%", filter: "drop-shadow(0 30px 60px rgba(12,13,16,.35))" }}
+        />
+      )}
+      {browser3 > 0 && <Browser show={browser3} title="Weekend trip vlog – YouTube" path="youtube.com/watch?v=trip-vlog" profile="Personal" />}
       {popup > 0 && (
         <Img
           src={staticFile(ticked ? "popup-ticked.png" : "popup.png")}
@@ -200,7 +243,9 @@ export const ProfileyDemo: React.FC = () => {
       <Caption text="A link from Slack…" opacity={cap(10, 56)} />
       <Caption text="Pick the profile. Tick to remember." opacity={cap(60, 150)} />
       <Caption text="Opens in Work." opacity={cap(156, 214)} />
-      <Caption text="Next time, no asking. Straight to Work." opacity={cap(240, 330)} />
+      <Caption text="Next time, no asking. Straight to Work." opacity={cap(240, 334)} />
+      <Caption text="A link from a friend? Pick Personal." opacity={cap(342, 428)} />
+      <Caption text="Opens in Personal." opacity={cap(432, 515)} />
       <Cursor />
     </AbsoluteFill>
   );
@@ -211,7 +256,7 @@ export const MyComposition = () => {
     <Composition
       id="ProfileyDemo"
       component={ProfileyDemo}
-      durationInFrames={330}
+      durationInFrames={520}
       fps={FPS}
       width={1280}
       height={800}
