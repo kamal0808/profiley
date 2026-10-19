@@ -197,12 +197,19 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var profiles: [Profile] = []
     var savedSite: String?
     var gotURL = false
+    var launchedAtLogin = false
     var pending: [String] = []
     var manager: NSWindow?
     var addField: NSTextField?
     var addPop: NSPopUpButton?
     var setup: NSWindow?
     var setupBrowser = browser
+
+    func applicationWillFinishLaunching(_ n: Notification) {
+        let e = NSAppleEventManager.shared().currentAppleEvent
+        launchedAtLogin = e?.eventID == kAEOpenApplication
+            && e?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+    }
 
     func applicationDidFinishLaunching(_ n: Notification) {
         migrateFromFinicky()
@@ -227,7 +234,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         startAtLogin()
         // Opened by hand rather than by a link: show the saved sites.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            guard !self.gotURL && self.panel == nil else { return }
+            guard !self.gotURL && self.panel == nil && !self.launchedAtLogin else { return }
             if UserDefaults.standard.bool(forKey: "setupDone") { self.showManager(preview: nil) } else { self.showSetup(preview: nil, done: false) }
         }
     }
@@ -675,7 +682,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         do { try SMAppService.mainApp.register() } catch { NSLog("Couldn't add login item: %@", error.localizedDescription) }
     }
 
-    @objc func tryLink() { NSWorkspace.shared.open(URL(string: feedbackURL)!) }
+    @objc func tryLink() {
+        setup?.close()
+        NSWorkspace.shared.open(URL(string: feedbackURL)!)
+    }
 
     @objc func makeDefaultPressed() { makeDefault { self.reloadManager() } }
 
