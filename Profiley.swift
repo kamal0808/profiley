@@ -11,6 +11,9 @@ struct Browser {
 let browsers = [
     Browser(name: "Comet", bundleId: "ai.perplexity.comet", support: "Comet"),
     Browser(name: "Google Chrome", bundleId: "com.google.Chrome", support: "Google/Chrome"),
+    Browser(name: "Brave Browser", bundleId: "com.brave.Browser", support: "BraveSoftware/Brave-Browser"),
+    Browser(name: "Microsoft Edge", bundleId: "com.microsoft.edgemac", support: "Microsoft Edge"),
+    Browser(name: "Vivaldi", bundleId: "com.vivaldi.Vivaldi", support: "Vivaldi"),
 ]
 
 let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
@@ -18,11 +21,18 @@ let finickyConfig = home + "/.finicky.js"
 let storeDir = home + "/Library/Application Support/Profiley"
 let sitesFile = storeDir + "/sites.json"
 
-// `defaults write com.kamalkhatwani.profiley browser "Google Chrome"`, else the one an old
+// `defaults write com.kamalkhatwani.profiley browser "Google Chrome"`, else the default
+// browser at first launch (saved, since Profiley then takes its place), else the one an old
 // ~/.finicky.js named (`const pickerBrowser = "...";`), else the first one installed.
 let browser: Browser = {
     if let name = UserDefaults.standard.string(forKey: "browser"),
        let b = browsers.first(where: { $0.name == name }) { return b }
+    if let url = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!),
+       let id = Bundle(url: url)?.bundleIdentifier,
+       let b = browsers.first(where: { $0.bundleId == id }) {
+        UserDefaults.standard.set(b.name, forKey: "browser")
+        return b
+    }
     if let src = try? String(contentsOfFile: finickyConfig, encoding: .utf8),
        let m = src.range(of: #"const pickerBrowser = "([^"]+)""#, options: .regularExpression) {
         let name = src[m].split(separator: "\"")[1]
