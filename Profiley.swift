@@ -207,7 +207,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         migrateFromFinicky()
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--preview"), i + 1 < args.count {
-            show(url: "https://example.com/some/page", preview: args[i + 1])
+            let u = args.firstIndex(of: "--url").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
+            show(url: u ?? "https://example.com/some/page", preview: args[i + 1])
             return
         }
         if let i = args.firstIndex(of: "--manage-preview"), i + 1 < args.count {
@@ -276,7 +277,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         remember = NSButton(checkboxWithTitle: "Always open \(host) this way", target: nil, action: nil)
-        remember.state = .off
+        remember.state = preview != nil && CommandLine.arguments.contains("--ticked") ? .on : .off
         remember.font = .systemFont(ofSize: 12)
         var views: [NSView] = [title, sub, row, remember]
         savedSite = nil
