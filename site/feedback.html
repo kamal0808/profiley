@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profiley feedback</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <a class="brand" href="/">Profiley</a>
+  <h1>It worked. You picked this profile.</h1>
+  <p class="muted">That popup is what every new site will show. Got a minute to tell us how setup went? It's read by the person who built it.</p>
+
+  <form name="feedback" method="POST" action="thanks.html" data-netlify="true" netlify-honeypot="company">
+    <input type="hidden" name="form-name" value="feedback">
+    <p hidden><label>Leave this empty <input name="company"></label></p>
+
+    <label>Did the popup show your profiles?</label>
+    <div class="choice">
+      <label><input type="radio" name="popup" value="yes" required> Yes</label>
+      <label><input type="radio" name="popup" value="no"> No, something was off</label>
+    </div>
+
+    <label for="browser">Which browser do you use?</label>
+    <select id="browser" name="browser">
+      <option>Google Chrome</option><option>Comet</option><option>Brave</option><option>Microsoft Edge</option><option>Vivaldi</option><option>Arc</option><option>Safari</option><option>Firefox</option><option>Something else</option>
+    </select>
+
+    <label for="message">Anything that confused you, broke, or you wish it did?</label>
+    <textarea id="message" name="message" placeholder="Be blunt. A one-star story helps more than five stars."></textarea>
+
+    <label for="email">Email, if you'd like a reply <span class="muted" style="font-weight:400">(optional)</span></label>
+    <input id="email" type="email" name="email" placeholder="you@example.com">
+
+    <p style="margin-top:28px"><button class="btn" type="submit">Send feedback</button></p>
+  </form>
+
+  <footer>
+    Built in public on <a href="https://www.ideato.social/projects/profiley">Ideato</a> · a <a href="https://topc.social">TOPC</a> project · made by <a href="https://github.com/kamal0808">Kamal</a>, with Sayan
+  </footer>
+</main>
+</body>
+</html>
