@@ -3,32 +3,164 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Profiley</title>
-<meta name="description" content="Links from Slack, WhatsApp and Mail open in the right browser profile on your Mac.">
-<link rel="stylesheet" href="style.css">
+<title>Profiley: open every link in the right browser profile</title>
+<meta name="description" content="Open every link in the right browser profile. Free for Mac.">
+<meta property="og:title" content="Profiley">
+<meta property="og:description" content="Open every link in the right browser profile. Free for Mac.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F5F6F8}a{color:#0C0D10}a:hover{color:#3A3D45}*{box-sizing:border-box}
+input,textarea,select{width:100%;font:inherit;font-size:17px;color:#0C0D10;background:#fff;border:1px solid #D5D8DF;border-radius:12px;padding:13px 14px;min-height:48px}
+textarea{min-height:140px;resize:vertical}
+.choice{display:flex;gap:10px;flex-wrap:wrap}
+.choice label{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #D5D8DF;border-radius:12px;padding:12px 16px;min-height:48px;cursor:pointer;font-weight:500}
+.choice input{width:auto;min-height:0;accent-color:#0C0D10}
+.lbl{display:block;font-weight:600;font-size:17px;margin:28px 0 10px}</style>
 </head>
 <body>
-<main>
-  <a class="brand" href="/">Profiley</a>
-  <h1>Every link opens in the right profile.</h1>
-  <p class="muted">On a Mac, a link from Slack, WhatsApp or Mail opens in whichever browser profile happens to be in front. Your work doc lands in your personal account. Profiley sends each link to the profile it belongs to, and asks when it doesn't know.</p>
-  <p style="margin-top:28px"><a class="btn" href="https://github.com/kamal0808/profiley/releases/latest/download/Profiley.zip">Download for Mac</a></p>
-  <p class="muted small">Free and open source · macOS 12 or later · Chrome, Comet, Brave, Edge and Vivaldi</p>
 
-  <img class="shot" src="picker.png" alt="The Profiley popup asking which profile to open example.com in: Client, Personal or Work">
+<div style="width: 100%; background: #F5F6F8; color: #0C0D10; font-family: 'Figtree', system-ui, sans-serif; font-size: 18px; line-height: 1.55;">
 
-  <div class="points">
-    <div><h2>Pick once</h2><p class="muted">A new site shows your profiles, with the same pictures as your browser. Click one or press 1, 2, 3. Tick "Always open this site this way" and it never asks again.</p></div>
-    <div><h2>Your browser, your profiles</h2><p class="muted">On install it picks up the browser you already use and the profiles in it. Nothing to configure, no rules to write.</p></div>
-    <div><h2>Change your mind any time</h2><p class="muted">Hold Option while clicking a link to get the popup anyway. Open Profiley from Spotlight to see and edit every saved site.</p></div>
-  </div>
+  <header style="max-width: 1180px; margin: 0 auto; padding: 24px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+    <a href="#top" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0C0D10;">
+      <span aria-hidden="true" style="position: relative; width: 34px; height: 22px; display: inline-block;">
+        <span style="position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; background: #1F9E8F;"></span>
+        <span style="position: absolute; left: 12px; top: 0; width: 22px; height: 22px; border-radius: 50%; background: #C6F24E; mix-blend-mode: multiply;"></span>
+      </span>
+      <span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.02em;">Profiley</span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+      <a href="#how" style="text-decoration: none; font-size: 16px; font-weight: 500; color: #3A3D45;">How it works</a>
+      <a href="https://github.com/kamal0808/profiley" style="text-decoration: none; font-size: 16px; font-weight: 500; color: #3A3D45;">GitHub</a>
+      <a href="https://github.com/kamal0808/profiley/releases/latest/download/Profiley.zip" style="text-decoration: none; background: #0C0D10; color: #FFFFFF; font-weight: 600; font-size: 15px; padding: 11px 18px; border-radius: 999px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center;">Download</a>
+    </nav>
+  </header>
 
-  <p><a class="btn" href="https://github.com/kamal0808/profiley/releases/latest/download/Profiley.zip">Download for Mac</a></p>
+  <section id="top" style="max-width: 1180px; margin: 0 auto; padding: 56px 24px 96px; display: flex; flex-wrap: wrap; gap: 56px; align-items: center;">
+    <div style="flex: 1 1 460px; min-width: 0;">
+      <p style="margin: 0 0 20px; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #3A3D45;">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #C6F24E;"></span>
+        Free for Mac
+      </p>
+      <h1 style="margin: 0 0 24px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(48px, 7vw, 92px); line-height: 0.95; letter-spacing: -0.035em;">Open every link in the right browser profile.</h1>
+      <p style="margin: 0 0 36px; max-width: 520px; font-size: 20px; color: #3A3D45;">No more work links from Slack landing in your personal Chrome. Pick a profile once, and Profiley remembers.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center;">
+        <a href="https://github.com/kamal0808/profiley/releases/latest/download/Profiley.zip" style="text-decoration: none; background: #C6F24E; color: #0C0D10; font-weight: 600; font-size: 18px; padding: 16px 26px; border-radius: 14px; display: inline-flex; align-items: center; gap: 10px; min-height: 56px; box-sizing: border-box;">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M6 11l6 6 6-6"></path><path d="M5 20h14"></path></svg>
+          Download for Mac
+        </a>
+        <span style="font-size: 15px; color: #565A63;">macOS 12 or later · open source</span>
+      </div>
+      <p style="margin: 28px 0 0; font-size: 15px; color: #565A63;">Works with Chrome, Comet, Brave, Edge and Vivaldi.</p>
+    </div>
 
-  <footer>
-    Built in public on <a href="https://www.ideato.social/projects/profiley">Ideato</a> · a <a href="https://topc.social">TOPC</a> project · made by <a href="https://github.com/kamal0808">Kamal</a>, with Sayan
-    <br><a href="https://github.com/kamal0808/profiley">Source on GitHub</a> · <a href="feedback.html">Send feedback</a>
+    <div style="flex: 1 1 440px; min-width: 0; position: relative; padding: 24px 0 40px;">
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 18px; padding: 18px 20px; max-width: 380px; box-shadow: 0 1px 2px rgba(12,13,16,0.04);">
+        <div style="display: flex; gap: 12px; align-items: flex-start;">
+          <span aria-hidden="true" style="flex: none; width: 36px; height: 36px; border-radius: 9px; background: #5B5FC7; color: #FFFFFF; font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center;">R</span>
+          <div style="min-width: 0;">
+            <p style="margin: 0; font-size: 15px;"><strong style="font-weight: 600;">Riya</strong> <span style="color: #6B6F78; font-size: 13px;">in #client-acme</span></p>
+            <p style="margin: 2px 0 0; font-size: 15px; color: #23252B;">Can you check the brief before the call?</p>
+            <p style="margin: 6px 0 0; font-size: 15px; color: #1D63D6; text-decoration: underline; word-break: break-all;">docs.google.com/document/d/1x…</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin: -12px 0 0 auto; max-width: 440px; position: relative; background: #2A2B30; color: #FFFFFF; border-radius: 22px; padding: 26px 24px 20px; box-shadow: 0 30px 80px rgba(12,13,16,0.28), 0 2px 6px rgba(12,13,16,0.2);">
+        <p style="margin: 0; text-align: center; font-weight: 600; font-size: 17px;">Open docs.google.com in</p>
+        <p style="margin: 4px 0 20px; text-align: center; font-size: 12px; color: #B9BBC2;">https://docs.google.com/document/d/1x…</p>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px 10px; border-radius: 14px;">
+            <span aria-hidden="true" style="width: 60px; height: 60px; border-radius: 50%; background: #1F9E8F; box-shadow: 0 0 0 3px rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px;">P</span>
+            <span style="font-size: 14px; font-weight: 500;">Personal</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9EA1A9;">1</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px 10px; border-radius: 14px; background: rgba(255,255,255,0.12);">
+            <span aria-hidden="true" style="width: 60px; height: 60px; border-radius: 50%; background: #4F5BD5; box-shadow: 0 0 0 3px #C6F24E; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px;">W</span>
+            <span style="font-size: 14px; font-weight: 600;">Work</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9EA1A9;">2</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px 10px; border-radius: 14px;">
+            <span aria-hidden="true" style="width: 60px; height: 60px; border-radius: 50%; background: #D9822B; box-shadow: 0 0 0 3px rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 24px;">C</span>
+            <span style="font-size: 14px; font-weight: 500;">Client</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9EA1A9;">3</span>
+          </div>
+        </div>
+        <p style="margin: 18px 0 0; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #E4E5E9;">
+          <span aria-hidden="true" style="width: 16px; height: 16px; border-radius: 4px; background: #C6F24E; display: inline-flex; align-items: center; justify-content: center;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0C0D10" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>
+          </span>
+          Always open docs.google.com this way
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section style="background: #0C0D10; color: #F5F6F8;">
+    <div style="max-width: 1180px; margin: 0 auto; padding: 88px 24px; display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-end;">
+      <h2 style="flex: 2 1 520px; min-width: 0; margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: clamp(32px, 4.4vw, 56px); line-height: 1.04; letter-spacing: -0.025em;">Copy the link. Switch profiles. Paste it again. Every single time.</h2>
+      <p style="flex: 1 1 320px; min-width: 0; margin: 0; font-size: 18px; color: #B9BBC2;">Your Mac sends links to Chrome, not to a profile, so Chrome uses whichever window was open last. Chrome has no setting for it. Profiley is that setting.</p>
+    </div>
+  </section>
+
+  <section id="how" style="max-width: 1180px; margin: 0 auto; padding: 112px 24px 40px;">
+    <p style="margin: 0 0 14px; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #565A63;">How it works</p>
+    <h2 style="margin: 0 0 56px; max-width: 760px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(36px, 4.6vw, 60px); line-height: 1; letter-spacing: -0.03em;">Three steps. Then you forget it's there.</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 20px; padding: 32px 28px;">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #565A63;">01</span>
+        <h3 style="margin: 18px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.015em;">Install</h3>
+        <p style="margin: 0; color: #3A3D45;">It finds the browser you use and your profiles in it, pictures and all. Nothing to set up.</p>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 20px; padding: 32px 28px;">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #565A63;">02</span>
+        <h3 style="margin: 18px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.015em;">Click any link</h3>
+        <p style="margin: 0; color: #3A3D45;">A new site asks which profile. Click one, or press 1, 2 or 3.</p>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E3E5EA; border-radius: 20px; padding: 32px 28px;">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #565A63;">03</span>
+        <h3 style="margin: 18px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.015em;">Tick to remember</h3>
+        <p style="margin: 0; color: #3A3D45;">Next time, that site opens straight in the right profile. No asking.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="max-width: 1180px; margin: 0 auto; padding: 72px 24px 112px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 40px 32px;">
+    <div style="border-top: 2px solid #0C0D10; padding-top: 18px;">
+      <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 600;">Change your mind</h3>
+      <p style="margin: 0; font-size: 16px; color: #3A3D45;">Hold Option while clicking a link to get the popup back for a saved site.</p>
+    </div>
+    <div style="border-top: 2px solid #0C0D10; padding-top: 18px;">
+      <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 600;">See every rule</h3>
+      <p style="margin: 0; font-size: 16px; color: #3A3D45;">Open Profiley from Spotlight to edit, remove or add saved sites by hand.</p>
+    </div>
+    <div style="border-top: 2px solid #0C0D10; padding-top: 18px;">
+      <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 600;">No extension</h3>
+      <p style="margin: 0; font-size: 16px; color: #3A3D45;">It sits in place of your default browser. Nothing to install inside Chrome.</p>
+    </div>
+    <div style="border-top: 2px solid #0C0D10; padding-top: 18px;">
+      <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 600;">Stays on your Mac</h3>
+      <p style="margin: 0; font-size: 16px; color: #3A3D45;">Your saved sites live in one file on your Mac. No account, no tracking.</p>
+    </div>
+  </section>
+
+  <section style="max-width: 1180px; margin: 0 auto; padding: 0 24px 96px;">
+    <div style="background: #C6F24E; border-radius: 28px; padding: clamp(40px, 6vw, 80px); display: flex; flex-wrap: wrap; gap: 32px; align-items: center; justify-content: space-between;">
+      <h2 style="flex: 1 1 480px; min-width: 0; margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(34px, 4.6vw, 60px); line-height: 1; letter-spacing: -0.03em; color: #0C0D10;">Stop pasting links between profiles. It's free.</h2>
+      <a href="https://github.com/kamal0808/profiley/releases/latest/download/Profiley.zip" style="text-decoration: none; background: #0C0D10; color: #FFFFFF; font-weight: 600; font-size: 18px; padding: 18px 28px; border-radius: 14px; display: inline-flex; align-items: center; gap: 10px; min-height: 56px; box-sizing: border-box;">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"></path><path d="M6 11l6 6 6-6"></path><path d="M5 20h14"></path></svg>
+        Download for Mac
+      </a>
+    </div>
+  </section>
+
+  <footer style="border-top: 1px solid #E3E5EA;">
+    <div style="max-width: 1180px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; font-size: 15px; color: #565A63;">
+      <p style="margin: 0; max-width: 620px;">Made by <a href="https://github.com/kamal0808">Kamal</a>, built in public on <a href="https://www.ideato.social/projects/profiley">Ideato</a>. Want Arc, Safari or Firefox support? Help build it and own a share of Profiley. A <a href="https://topc.social">TOPC</a> project.</p>
+      <p style="margin: 0; display: flex; gap: 20px; flex-wrap: wrap;"><a href="https://github.com/kamal0808/profiley">Source on GitHub</a><a href="/feedback">Send feedback</a></p>
+    </div>
   </footer>
-</main>
+</div>
+
 </body>
 </html>
