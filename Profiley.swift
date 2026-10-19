@@ -252,7 +252,6 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel?.orderOut(nil)
         panel = nil
         if !pending.isEmpty { show(url: pending.removeFirst(), preview: nil) }
-        else if manager == nil && setup == nil { NSApp.terminate(nil) }
     }
 
     @objc func cancel() { next() }
@@ -627,6 +626,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             views = [label("Links from other apps will open in the right profile of", size: 15, weight: .semibold), pop,
                      profiles.isEmpty ? label("No profiles found. Open \(setupBrowser.name) once, then come back.", color: .secondaryLabelColor) : row,
                      label("A link to a site you haven't saved shows these profiles to pick from. Tick \"Always open this site this way\" and it stops asking.", size: 12, color: .secondaryLabelColor),
+                     label("Next, your Mac will ask to make Profiley your default browser. Say yes: that's how links reach Profiley. It doesn't show pages itself, it passes every link straight on to \(setupBrowser.name), in the right profile.", size: 12, color: .secondaryLabelColor),
                      go]
             if installed.isEmpty {
                 views = [label("Profiley works with Comet, Google Chrome, Brave, Microsoft Edge and Vivaldi. None of them is installed.")]
@@ -684,13 +684,19 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillClose(_ n: Notification) {
         if n.object as? NSWindow === setup { setup = nil } else { manager = nil }
-        if panel == nil && manager == nil && setup == nil { NSApp.terminate(nil) }
+    }
+
+    // Stays running between links so the next one skips a cold start; opening it again shows its window.
+    func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if panel == nil && manager == nil && setup == nil {
+            if UserDefaults.standard.bool(forKey: "setupDone") { showManager(preview: nil) } else { showSetup(preview: nil, done: false) }
+        }
+        return false
     }
 
     func choose(_ i: Int) {
         guard profiles.indices.contains(i) else { return }
-        let p = profiles[i]
-        openInBrowser(url, p)
+        let p = profiles[i], link = url
         if remember.state == .on && !host.isEmpty {
             var sites = loadSites()
             sites[host] = p.name
@@ -698,6 +704,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             reloadManager()
         }
         next()
+        openInBrowser(link, p)
     }
 
     func openInBrowser(_ url: String, _ p: Profile) {
@@ -710,9 +717,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func bringBrowserForward() {
         let id = browser.bundleId
         if #available(macOS 14.0, *) { NSApp.yieldActivation(toApplicationWithBundleIdentifier: id) }
-        for delay in [0.0, 0.3] {
-            Thread.sleep(forTimeInterval: delay)
-            NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.activate(options: [.activateAllWindows])
+        for delay in [0.0, 0.3, 1.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.activate(options: [.activateAllWindows])
+            }
         }
     }
 
@@ -721,7 +729,6 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         t.executableURL = URL(fileURLWithPath: path)
         t.arguments = args
         try? t.run()
-        t.waitUntilExit()
     }
 }
 
