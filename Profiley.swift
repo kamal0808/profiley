@@ -587,8 +587,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         var views: [NSView]
         if done {
-            let link = NSButton(title: feedbackURL.replacingOccurrences(of: "https://", with: ""), target: self, action: #selector(tryLink))
-            link.bezelStyle = .rounded
+            let link = NSButton(title: "", target: self, action: #selector(tryLink))
+            link.isBordered = false
+            link.attributedTitle = NSAttributedString(string: "Open link to give feedback", attributes: [
+                .font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.linkColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue])
+            link.toolTip = feedbackURL
             link.keyEquivalent = "\r"
             views = [label("You're set.", size: 17, weight: .semibold),
                      label("Try it: click the link below. Profiley will ask which profile to open it in, the same way it will for links from Slack, WhatsApp or Mail. It goes to the feedback page, so tell us how it went."),
