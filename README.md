@@ -9,7 +9,7 @@ On a Mac, links from Slack, WhatsApp, Claude and other apps open in whichever br
 - Hold Option while clicking a link to get the popup anyway, to pick a different profile or press Forget on a saved site.
 - Open Profiley from Spotlight (or press "Saved sites…" in the popup) to see every saved site, change which profile it opens in, remove it, or add one by hand.
 
-Works with Comet and Google Chrome.
+Works with Comet, Google Chrome, Brave, Microsoft Edge and Vivaldi.
 
 ## Install
 
@@ -19,7 +19,7 @@ Needs macOS 12 or later.
 2. Open it. macOS will say it can't check it for malware, because the app isn't notarized by Apple yet. Go to System Settings → Privacy & Security, scroll down and press "Open Anyway".
 3. The Saved sites window opens; press "Make default browser" and confirm.
 
-It uses Comet if installed, else Chrome. To use Chrome when you have both: `defaults write com.kamalkhatwani.profiley browser "Google Chrome"`, then open Profiley again.
+It uses the browser that was your default when you first opened it, with that browser's profiles. If your default was Safari, Firefox or Arc, it uses the first supported browser installed. To switch: `defaults write com.kamalkhatwani.profiley browser "Google Chrome"` (or "Comet", "Brave Browser", "Microsoft Edge", "Vivaldi"), then open Profiley again.
 
 ### Build from source
 
@@ -28,7 +28,7 @@ Needs the Xcode command line tools (`xcode-select --install`):
 ```sh
 git clone https://github.com/kamal0808/profiley
 cd profiley
-./install.sh                          # uses Comet if installed, else Chrome
+./install.sh                          # uses your current default browser
 ./install.sh --browser "Google Chrome"  # or pick one
 ```
 
