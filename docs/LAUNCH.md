@@ -29,28 +29,25 @@ Profiley's edge, honestly: **Comet** (none of the others mention it), no browser
 
 No fresh thread was found to reply to.
 
-## Suggested angle: Comet users
+## Angle: what it does, in one line
 
-The one gap nobody else fills. Comet users with several profiles hit exactly this, and no router mentions Comet.
+Kamal ruled out a Comet-only angle (2026-10-19): it has to work with whatever browser people use. The site's line is the pitch: **"Open every link in the right browser profile."** It picks up the browser you already use (Chrome, Comet, Brave, Edge, Vivaldi) and its profiles on install. What's actually ours against LinkPrism/Choosy/Velja: no rules to write and no extension; it asks once per site with your real profile pictures and remembers.
 
-Draft post (for r/perplexity_ai or a Comet community, once its rules are checked):
+Draft post (r/macapps or similar, once its self-promotion rules are checked):
 
-> **Links from Slack/WhatsApp open in whatever Comet profile is in front. I made a small fix.**
+> **Work links kept opening in my personal Chrome, so I made a tiny Mac app for it**
 >
-> I keep work and personal in separate Comet profiles, and every link from Slack, WhatsApp or Claude landed in whichever one I'd used last. None of the link-router apps I found mention Comet, so I built one.
+> Click a link in Slack, WhatsApp or Mail and it opens in whichever browser profile was last in front. Profiley opens every link in the right profile instead. The first time it sees a site it asks which profile (press 1, 2, 3), tick "always" and it never asks again. Hold Option to change your mind.
 >
-> Profiley becomes your default browser. A link from another app shows your Comet profiles with their avatars; press 1, 2, 3. Tick "always open this site this way" and it stops asking for that site. Option-click to get the popup anyway.
+> It picks up your browser and profiles by itself (Chrome, Comet, Brave, Edge, Vivaldi). Free, open source, built in public: https://profiley.topc.social
 >
-> Free and open source: github.com/kamal0808/profiley. Works with Chrome too.
->
-> If you try it, I'd love to know which links still end up in the wrong place.
+> If you try it, tell me which links still land in the wrong place.
 
 ## Yes-line
 
-Within 7 days of the post: at least 10 downloads beyond today's 3 (GitHub's release download count), and at least 3 strangers who comment, open an issue or say they use it. Friends don't count.
+Within 7 days of the post: at least 10 downloads beyond the count on the day of posting (GitHub's release download count), and at least 3 strangers who comment, open an issue or say they use it. Friends don't count.
 
 ## Before posting
 
-1. Notarize the release (Sayan's Apple Developer account, a Neki task per release, or TOPC's own $99 account).
-2. A 10-second GIF of the popup for the post and the README.
-3. Read the target subreddit's rules.
+1. Notarize the release (topc-social/finicky-picker-tasks#8; Sayan's team, via a clean Apple ID). Until then friends install with the Open Anyway steps on /install.
+2. Read the target subreddit's rules.
