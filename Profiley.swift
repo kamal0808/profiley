@@ -1,6 +1,7 @@
 // The default browser. A link to a saved site opens straight in its profile;
 // any other link (or any link while Option is held) shows a popup to pick one.
 import AppKit
+import ServiceManagement
 
 struct Browser {
     let name: String       // app name, as `open -a` knows it
@@ -223,6 +224,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             makeDefault { NSApp.terminate(nil) }
             return
         }
+        startAtLogin()
         // Opened by hand rather than by a link: show the saved sites.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard !self.gotURL && self.panel == nil else { return }
@@ -662,8 +664,15 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         makeDefault {
             guard isDefaultBrowser() else { return }  // they declined macOS's prompt; the button stays
             UserDefaults.standard.set(true, forKey: "setupDone")
+            self.startAtLogin()
             self.reloadSetup(done: true)
         }
+    }
+
+    // Already running at login, so the first link of the day skips a cold start.
+    func startAtLogin() {
+        guard isDefaultBrowser(), #available(macOS 13.0, *), SMAppService.mainApp.status != .enabled else { return }
+        do { try SMAppService.mainApp.register() } catch { NSLog("Couldn't add login item: %@", error.localizedDescription) }
     }
 
     @objc func tryLink() { NSWorkspace.shared.open(URL(string: feedbackURL)!) }
