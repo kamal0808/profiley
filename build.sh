@@ -25,7 +25,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>Profiley</string>
   <key>CFBundleExecutable</key><string>Profiley</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.1</string>
+  <key>CFBundleShortVersionString</key><string>1.2</string>
   <key>LSUIElement</key><true/>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>CFBundleURLTypes</key><array><dict>
@@ -40,4 +40,6 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 codesign --force -s - "$APP" 2>/dev/null
+# Re-register so macOS finds the rebuilt app; otherwise links fall back to Safari until it is opened.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 echo "Built $APP"
