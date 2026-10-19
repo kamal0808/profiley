@@ -198,6 +198,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var savedSite: String?
     var gotURL = false
     var launchedAtLogin = false
+    var lastURLAt = Date.distantPast
     var pending: [String] = []
     var manager: NSWindow?
     var addField: NSTextField?
@@ -242,6 +243,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // Links (and .html files) sent to us as the default browser.
     func application(_ app: NSApplication, open urls: [URL]) {
         gotURL = true
+        lastURLAt = Date()
         let forcePicker = NSEvent.modifierFlags.contains(.option)
         let sites = loadSites()
         let all = loadProfiles()
@@ -706,9 +708,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     // Stays running between links so the next one skips a cold start; opening it again shows its window.
+    // macOS also sends a reopen alongside each link to a running app, so only a reopen with no link around it shows a window.
     func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if panel == nil && manager == nil && setup == nil {
-            if UserDefaults.standard.bool(forKey: "setupDone") { showManager(preview: nil) } else { showSetup(preview: nil, done: false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            guard Date().timeIntervalSince(self.lastURLAt) > 1,
+                  self.panel == nil, self.manager == nil, self.setup == nil else { return }
+            if UserDefaults.standard.bool(forKey: "setupDone") { self.showManager(preview: nil) } else { self.showSetup(preview: nil, done: false) }
         }
         return false
     }
