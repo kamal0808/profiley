@@ -1,6 +1,7 @@
 // The default browser. A link to a saved site opens straight in its profile;
 // any other link (or any link while Option is held) shows a popup to pick one.
 import AppKit
+import ServiceManagement
 
 struct Browser {
     let name: String       // app name, as `open -a` knows it
@@ -11,6 +12,9 @@ struct Browser {
 let browsers = [
     Browser(name: "Comet", bundleId: "ai.perplexity.comet", support: "Comet"),
     Browser(name: "Google Chrome", bundleId: "com.google.Chrome", support: "Google/Chrome"),
+    Browser(name: "Brave Browser", bundleId: "com.brave.Browser", support: "BraveSoftware/Brave-Browser"),
+    Browser(name: "Microsoft Edge", bundleId: "com.microsoft.edgemac", support: "Microsoft Edge"),
+    Browser(name: "Vivaldi", bundleId: "com.vivaldi.Vivaldi", support: "Vivaldi"),
 ]
 
 let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
@@ -18,11 +22,18 @@ let finickyConfig = home + "/.finicky.js"
 let storeDir = home + "/Library/Application Support/Profiley"
 let sitesFile = storeDir + "/sites.json"
 
-// `defaults write com.kamalkhatwani.profiley browser "Google Chrome"`, else the one an old
+// `defaults write com.kamalkhatwani.profiley browser "Google Chrome"`, else the default
+// browser at first launch (saved, since Profiley then takes its place), else the one an old
 // ~/.finicky.js named (`const pickerBrowser = "...";`), else the first one installed.
-let browser: Browser = {
+var browser: Browser = {
     if let name = UserDefaults.standard.string(forKey: "browser"),
        let b = browsers.first(where: { $0.name == name }) { return b }
+    if let url = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!),
+       let id = Bundle(url: url)?.bundleIdentifier,
+       let b = browsers.first(where: { $0.bundleId == id }) {
+        UserDefaults.standard.set(b.name, forKey: "browser")
+        return b
+    }
     if let src = try? String(contentsOfFile: finickyConfig, encoding: .utf8),
        let m = src.range(of: #"const pickerBrowser = "([^"]+)""#, options: .regularExpression) {
         let name = src[m].split(separator: "\"")[1]
@@ -31,7 +42,8 @@ let browser: Browser = {
     return browsers.first { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleId) != nil } ?? browsers[0]
 }()
 
-let browserSupport = home + "/Library/Application Support/" + browser.support
+func supportDir(_ b: Browser) -> String { home + "/Library/Application Support/" + b.support }
+let feedbackURL = "https://profiley.topc.social/feedback"
 let cometResources = "/Applications/Comet.app/Contents/Frameworks/Comet Framework.framework/Resources/"
 // Resource ids of Comet's avatar art, found by dumping its packs (Comet 154).
 // Picked avatars: IDR_PROFILE_AVATAR_N is id avatarBaseId + N in chrome_200_percent.pak.
@@ -104,8 +116,8 @@ func argb(_ v: Any?) -> NSColor? {
                    blue: CGFloat(u & 0xff) / 255, alpha: 1)
 }
 
-func pakImage(_ pak: String, _ id: Int) -> NSImage? {
-    guard browser.name == "Comet", let d = FileManager.default.contents(atPath: cometResources + pak), d.count > 12 else { return nil }
+func pakImage(_ b: Browser, _ pak: String, _ id: Int) -> NSImage? {
+    guard b.name == "Comet", let d = FileManager.default.contents(atPath: cometResources + pak), d.count > 12 else { return nil }
     func u16(_ o: Int) -> Int { Int(d[o]) | Int(d[o + 1]) << 8 }
     func u32(_ o: Int) -> Int { u16(o) | u16(o + 2) << 16 }
     guard u32(0) == 5 else { return nil }
@@ -117,7 +129,8 @@ func pakImage(_ pak: String, _ id: Int) -> NSImage? {
     return nil
 }
 
-func loadProfiles() -> [Profile] {
+func loadProfiles(_ b: Browser = browser) -> [Profile] {
+    let browserSupport = supportDir(b)
     guard let data = FileManager.default.contents(atPath: browserSupport + "/Local State"),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let cache = (json["profile"] as? [String: Any])?["info_cache"] as? [String: [String: Any]]
@@ -127,10 +140,10 @@ func loadProfiles() -> [Profile] {
         if let pic = info["gaia_picture_file_name"] as? String, !pic.isEmpty, (info["use_gaia_picture"] as? Bool) == true {
             avatar = NSImage(contentsOfFile: "\(browserSupport)/\(dir)/\(pic)")
         } else if (info["is_using_default_avatar"] as? Bool) == true {
-            avatar = pakImage("chrome_100_percent.pak", defaultAvatarId)
+            avatar = pakImage(b, "chrome_100_percent.pak", defaultAvatarId)
         } else if let icon = info["avatar_icon"] as? String,
                   let n = Int(icon.replacingOccurrences(of: "chrome://theme/IDR_PROFILE_AVATAR_", with: "")) {
-            avatar = pakImage("chrome_200_percent.pak", avatarBaseId + n)
+            avatar = pakImage(b, "chrome_200_percent.pak", avatarBaseId + n)
         }
         return Profile(dir: dir, name: info["name"] as? String ?? dir,
                        color: argb(info["profile_color_seed"]) ?? .systemGray, avatar: avatar)
@@ -188,24 +201,35 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var manager: NSWindow?
     var addField: NSTextField?
     var addPop: NSPopUpButton?
+    var setup: NSWindow?
+    var setupBrowser = browser
 
     func applicationDidFinishLaunching(_ n: Notification) {
         migrateFromFinicky()
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--preview"), i + 1 < args.count {
-            show(url: "https://example.com/some/page", preview: args[i + 1])
+            let u = args.firstIndex(of: "--url").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
+            show(url: u ?? "https://example.com/some/page", preview: args[i + 1])
             return
         }
         if let i = args.firstIndex(of: "--manage-preview"), i + 1 < args.count {
             showManager(preview: args[i + 1])
             return
         }
+        if let i = args.firstIndex(of: "--setup-preview"), i + 1 < args.count {
+            showSetup(preview: args[i + 1], done: args.contains("--done"))
+            return
+        }
         if args.contains("--make-default") {
             makeDefault { NSApp.terminate(nil) }
             return
         }
+        startAtLogin()
         // Opened by hand rather than by a link: show the saved sites.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { if !self.gotURL && self.panel == nil { self.showManager(preview: nil) } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            guard !self.gotURL && self.panel == nil else { return }
+            if UserDefaults.standard.bool(forKey: "setupDone") { self.showManager(preview: nil) } else { self.showSetup(preview: nil, done: false) }
+        }
     }
 
     // Links (and .html files) sent to us as the default browser.
@@ -230,7 +254,6 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel?.orderOut(nil)
         panel = nil
         if !pending.isEmpty { show(url: pending.removeFirst(), preview: nil) }
-        else if manager == nil { NSApp.terminate(nil) }
     }
 
     @objc func cancel() { next() }
@@ -255,7 +278,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         remember = NSButton(checkboxWithTitle: "Always open \(host) this way", target: nil, action: nil)
-        remember.state = .off
+        remember.state = preview != nil && CommandLine.arguments.contains("--ticked") ? .on : .off
         remember.font = .systemFont(ofSize: 12)
         var views: [NSView] = [title, sub, row, remember]
         savedSite = nil
@@ -528,6 +551,132 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         reloadManager()
     }
 
+    // First run: confirm the browser and its profiles, become the default, then try a link.
+    func showSetup(preview: String?, done: Bool) {
+        let w = setup ?? NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 300),
+                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Welcome to Profiley"
+        w.isReleasedWhenClosed = false
+        w.delegate = self
+        setup = w
+        reloadSetup(done: done)
+        w.center()
+        if let out = preview {
+            w.appearance = NSAppearance(named: .aqua)
+            w.orderFront(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                let v = w.contentView!
+                if let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                    v.cacheDisplay(in: v.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: out))
+                }
+                NSApp.terminate(nil)
+            }
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        w.makeKeyAndOrderFront(nil)
+    }
+
+    func reloadSetup(done: Bool) {
+        guard let w = setup else { return }
+        func label(_ s: String, size: CGFloat = 13, weight: NSFont.Weight = .regular, color: NSColor = .labelColor) -> NSTextField {
+            let t = NSTextField(wrappingLabelWithString: s)
+            t.font = .systemFont(ofSize: size, weight: weight)
+            t.textColor = color
+            t.preferredMaxLayoutWidth = 460
+            return t
+        }
+        var views: [NSView]
+        if done {
+            let link = NSButton(title: "", target: self, action: #selector(tryLink))
+            link.isBordered = false
+            link.attributedTitle = NSAttributedString(string: "Open link to give feedback", attributes: [
+                .font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.linkColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue])
+            link.toolTip = feedbackURL
+            link.keyEquivalent = "\r"
+            views = [label("You're set.", size: 17, weight: .semibold),
+                     label("Try it: click the link below. Profiley will ask which profile to open it in, the same way it will for links from Slack, WhatsApp or Mail. It goes to the feedback page, so tell us how it went."),
+                     link,
+                     label("Open Profiley from Spotlight any time to see your saved sites.", size: 11, color: .tertiaryLabelColor)]
+        } else {
+            let installed = browsers.filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleId) != nil }
+            let pop = NSPopUpButton(frame: .zero, pullsDown: false)
+            pop.addItems(withTitles: installed.map(\.name))
+            pop.selectItem(withTitle: setupBrowser.name)
+            pop.target = self
+            pop.action = #selector(setupBrowserChanged(_:))
+            let profiles = loadProfiles(setupBrowser)
+            let row = NSStackView()
+            row.spacing = 16
+            for p in profiles {
+                let avatar = AvatarView(p)
+                avatar.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([avatar.widthAnchor.constraint(equalToConstant: 56), avatar.heightAnchor.constraint(equalToConstant: 56)])
+                let name = NSTextField(labelWithString: p.name)
+                name.font = .systemFont(ofSize: 12)
+                let card = NSStackView(views: [avatar, name])
+                card.orientation = .vertical
+                card.spacing = 6
+                row.addArrangedSubview(card)
+            }
+            let go = NSButton(title: "Looks great", target: self, action: #selector(finishSetup))
+            go.bezelStyle = .rounded
+            go.keyEquivalent = "\r"
+            go.isEnabled = !profiles.isEmpty
+            views = [label("Links from other apps will open in the right profile of", size: 15, weight: .semibold), pop,
+                     profiles.isEmpty ? label("No profiles found. Open \(setupBrowser.name) once, then come back.", color: .secondaryLabelColor) : row,
+                     label("A link to a site you haven't saved shows these profiles to pick from. Tick \"Always open this site this way\" and it stops asking.", size: 12, color: .secondaryLabelColor),
+                     label("Next, your Mac will ask to make Profiley your default browser. Say yes: that's how links reach Profiley. It doesn't show pages itself, it passes every link straight on to \(setupBrowser.name), in the right profile.", size: 12, color: .secondaryLabelColor),
+                     go]
+            if installed.isEmpty {
+                views = [label("Profiley works with Comet, Google Chrome, Brave, Microsoft Edge and Vivaldi. None of them is installed.")]
+            }
+        }
+        let stack = NSStackView(views: views)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 14
+        stack.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 22, right: 24)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        let content = NSView()
+        content.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: content.topAnchor),
+        ])
+        w.contentView = content
+        w.setContentSize(NSSize(width: 520, height: stack.fittingSize.height))
+    }
+
+    @objc func setupBrowserChanged(_ sender: NSPopUpButton) {
+        guard let b = browsers.first(where: { $0.name == sender.titleOfSelectedItem }) else { return }
+        setupBrowser = b
+        reloadSetup(done: false)
+    }
+
+    @objc func finishSetup() {
+        browser = setupBrowser
+        UserDefaults.standard.set(browser.name, forKey: "browser")
+        profiles = []
+        makeDefault {
+            guard isDefaultBrowser() else { return }  // they declined macOS's prompt; the button stays
+            UserDefaults.standard.set(true, forKey: "setupDone")
+            self.startAtLogin()
+            self.reloadSetup(done: true)
+        }
+    }
+
+    // Already running at login, so the first link of the day skips a cold start.
+    func startAtLogin() {
+        guard isDefaultBrowser(), #available(macOS 13.0, *), SMAppService.mainApp.status != .enabled else { return }
+        do { try SMAppService.mainApp.register() } catch { NSLog("Couldn't add login item: %@", error.localizedDescription) }
+    }
+
+    @objc func tryLink() { NSWorkspace.shared.open(URL(string: feedbackURL)!) }
+
     @objc func makeDefaultPressed() { makeDefault { self.reloadManager() } }
 
     // macOS asks the user to confirm before the change takes effect.
@@ -543,14 +692,20 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillClose(_ n: Notification) {
-        manager = nil
-        if panel == nil { NSApp.terminate(nil) }
+        if n.object as? NSWindow === setup { setup = nil } else { manager = nil }
+    }
+
+    // Stays running between links so the next one skips a cold start; opening it again shows its window.
+    func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if panel == nil && manager == nil && setup == nil {
+            if UserDefaults.standard.bool(forKey: "setupDone") { showManager(preview: nil) } else { showSetup(preview: nil, done: false) }
+        }
+        return false
     }
 
     func choose(_ i: Int) {
         guard profiles.indices.contains(i) else { return }
-        let p = profiles[i]
-        openInBrowser(url, p)
+        let p = profiles[i], link = url
         if remember.state == .on && !host.isEmpty {
             var sites = loadSites()
             sites[host] = p.name
@@ -558,6 +713,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             reloadManager()
         }
         next()
+        openInBrowser(link, p)
     }
 
     func openInBrowser(_ url: String, _ p: Profile) {
@@ -570,9 +726,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func bringBrowserForward() {
         let id = browser.bundleId
         if #available(macOS 14.0, *) { NSApp.yieldActivation(toApplicationWithBundleIdentifier: id) }
-        for delay in [0.0, 0.3] {
-            Thread.sleep(forTimeInterval: delay)
-            NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.activate(options: [.activateAllWindows])
+        for delay in [0.0, 0.3, 1.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.activate(options: [.activateAllWindows])
+            }
         }
     }
 
@@ -581,7 +738,6 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         t.executableURL = URL(fileURLWithPath: path)
         t.arguments = args
         try? t.run()
-        t.waitUntilExit()
     }
 }
 
