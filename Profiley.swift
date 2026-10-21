@@ -65,10 +65,10 @@ func saveSites(_ sites: [String: String]) {
     }
 }
 
-// Anonymous usage count on PostHog: "app_install" once, then "app_active" at most once a day,
+// Anonymous usage count on PostHog (TOPC project, filter by app): "app_install" once, then "app_active" at most once a day,
 // with a random ID and the app version, no person profile.
 // Off: `defaults write com.kamalkhatwani.profiley analytics -bool false`.
-let posthogKey = ""
+let posthogKey = "phc_CappPjX82qb8tAk4hH7oSYccrSnw2YT7QrQkKrN7F5Gf"
 
 func ping() {
     let d = UserDefaults.standard
