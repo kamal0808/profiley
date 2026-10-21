@@ -391,6 +391,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             return
         }
+        // Activating the app would also raise a Saved sites or setup window left open, so tuck those away first.
+        manager?.orderOut(nil)
+        setup?.orderOut(nil)
         p.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         p.makeKey()
@@ -774,8 +777,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // macOS also sends a reopen alongside each link to a running app, so only a reopen with no link around it shows a window.
     func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            guard Date().timeIntervalSince(self.lastURLAt) > 1,
-                  self.panel == nil, self.manager == nil, self.setup == nil else { return }
+            guard Date().timeIntervalSince(self.lastURLAt) > 1, self.panel == nil else { return }
+            if let w = self.setup ?? self.manager { NSApp.activate(ignoringOtherApps: true); w.makeKeyAndOrderFront(nil); return }
             if UserDefaults.standard.bool(forKey: "setupDone") { self.showManager(preview: nil) } else { self.showSetup(preview: nil, done: false) }
         }
         return false
