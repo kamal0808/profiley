@@ -65,6 +65,33 @@ func saveSites(_ sites: [String: String]) {
     }
 }
 
+// Anonymous usage count on PostHog: "app_install" once, then "app_active" at most once a day,
+// with a random ID and the app version, no person profile.
+// Off: `defaults write com.kamalkhatwani.profiley analytics -bool false`.
+let posthogKey = ""
+
+func ping() {
+    let d = UserDefaults.standard
+    guard !posthogKey.isEmpty, d.object(forKey: "analytics") as? Bool != false else { return }
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd"
+    let today = f.string(from: Date()), last = d.string(forKey: "pingDay")
+    guard last != today else { return }
+    d.set(today, forKey: "pingDay")
+    let id = d.string(forKey: "pingID") ?? UUID().uuidString
+    d.set(id, forKey: "pingID")
+    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+    let event: [String: Any] = ["api_key": posthogKey, "event": last == nil ? "app_install" : "app_active", "distinct_id": id,
+                                "properties": ["app": "profiley", "$app_version": version, "$process_person_profile": false]]
+    guard let body = try? JSONSerialization.data(withJSONObject: event), let json = String(data: body, encoding: .utf8) else { return }
+    // curl, not URLSession: Profiley often quits right after opening a link, and curl outlives it.
+    let t = Process()
+    t.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+    t.arguments = ["-s", "-m", "10", "-o", "/dev/null", "-H", "Content-Type: application/json",
+                   "-d", json, "https://us.i.posthog.com/i/v0/e/"]
+    try? t.run()
+}
+
 // First run: bring over the sites an older Finicky-based setup saved in ~/.finicky.js.
 func migrateFromFinicky() {
     guard !FileManager.default.fileExists(atPath: sitesFile) else { return }
@@ -237,6 +264,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Opened by hand rather than by a link: show the saved sites.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard !self.gotURL && self.panel == nil && !self.launchedAtLogin else { return }
+            ping()
             if UserDefaults.standard.bool(forKey: "setupDone") { self.showManager(preview: nil) } else { self.showSetup(preview: nil, done: false) }
         }
     }
@@ -245,6 +273,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func application(_ app: NSApplication, open urls: [URL]) {
         gotURL = true
         lastURLAt = Date()
+        ping()
         let forcePicker = NSEvent.modifierFlags.contains(.option)
         let sites = loadSites()
         let all = loadProfiles()
