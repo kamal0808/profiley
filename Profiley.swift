@@ -324,11 +324,15 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         remember.font = .systemFont(ofSize: 12)
         var views: [NSView] = [title, sub, row]
         others = otherBrowsers()
-        if !others.isEmpty {
+        do {
             let label = NSTextField(labelWithString: "Or open in")
             label.font = .systemFont(ofSize: 12)
             label.textColor = .secondaryLabelColor
-            let otherRow = NSStackView(views: [label])
+            let priv = NSButton(title: "Private window", target: self, action: #selector(openPrivate))
+            priv.image = NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)
+            priv.imagePosition = .imageLeading
+            priv.bezelStyle = .inline
+            let otherRow = NSStackView(views: [label, priv])
             otherRow.spacing = 6
             for (i, app) in others.enumerated() {
                 let b = NSButton(title: FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: ""), target: self, action: #selector(openOther(_:)))
@@ -478,6 +482,14 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
                      "com.vivaldi.Vivaldi", "org.mozilla.firefox", "company.thebrowser.Browser", "com.openai.atlas",
                      "com.operasoftware.Opera", "com.kagi.kagimacOS", "app.zen-browser.zen"]
         return known.filter { $0 != browser.bundleId }.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+    }
+
+    // Incognito in the main browser; never saved as a site's choice.
+    @objc func openPrivate() {
+        let link = url
+        next()
+        run("/usr/bin/open", ["-na", browser.name, "--args", "--incognito", link])
+        bringBrowserForward()
     }
 
     @objc func openOther(_ sender: NSButton) {
