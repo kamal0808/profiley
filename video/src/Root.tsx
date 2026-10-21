@@ -1,6 +1,7 @@
 import { MyComposition } from "./Composition";
 import { InstallStills } from "./InstallSteps";
 import { InstallFlow } from "./InstallFlow";
+import { LinkedInAccessComposition } from "./LinkedInAccess";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -8,6 +9,7 @@ export const RemotionRoot: React.FC = () => {
       <MyComposition />
       <InstallStills />
       <InstallFlow />
+      <LinkedInAccessComposition />
     </>
   );
 };
