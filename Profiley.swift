@@ -199,6 +199,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var gotURL = false
     var launchedAtLogin = false
     var lastURLAt = Date.distantPast
+    var others: [URL] = []
     var pending: [String] = []
     var manager: NSWindow?
     var addField: NSTextField?
@@ -289,7 +290,26 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         remember = NSButton(checkboxWithTitle: "Always open \(host) this way", target: nil, action: nil)
         remember.state = preview != nil && CommandLine.arguments.contains("--ticked") ? .on : .off
         remember.font = .systemFont(ofSize: 12)
-        var views: [NSView] = [title, sub, row, remember]
+        var views: [NSView] = [title, sub, row]
+        others = otherBrowsers()
+        if !others.isEmpty {
+            let label = NSTextField(labelWithString: "Or open in")
+            label.font = .systemFont(ofSize: 12)
+            label.textColor = .secondaryLabelColor
+            let otherRow = NSStackView(views: [label])
+            otherRow.spacing = 6
+            for (i, app) in others.enumerated() {
+                let b = NSButton(title: FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: ""), target: self, action: #selector(openOther(_:)))
+                b.image = NSWorkspace.shared.icon(forFile: app.path)
+                b.image?.size = NSSize(width: 18, height: 18)
+                b.imagePosition = .imageLeading
+                b.bezelStyle = .inline
+                b.tag = i
+                otherRow.addArrangedSubview(b)
+            }
+            views.append(otherRow)
+        }
+        views.append(remember)
         savedSite = nil
         if let m = savedMatch(host, in: loadSites()) {
             savedSite = m.site
@@ -416,6 +436,20 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func picked(_ sender: NSButton) { choose(sender.tag) }
+
+    // Every other installed browser, for links that belong in a different one (Safari for Apple's sites, say).
+    func otherBrowsers() -> [URL] {
+        let known = ["com.apple.Safari", "com.google.Chrome", "ai.perplexity.comet", "com.brave.Browser", "com.microsoft.edgemac",
+                     "com.vivaldi.Vivaldi", "org.mozilla.firefox", "company.thebrowser.Browser", "com.openai.atlas",
+                     "com.operasoftware.Opera", "com.kagi.kagimacOS", "app.zen-browser.zen"]
+        return known.filter { $0 != browser.bundleId }.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+    }
+
+    @objc func openOther(_ sender: NSButton) {
+        guard others.indices.contains(sender.tag), let u = URL(string: url) else { return }
+        NSWorkspace.shared.open([u], withApplicationAt: others[sender.tag], configuration: NSWorkspace.OpenConfiguration())
+        next()
+    }
 
     @objc func openManager() {
         panel?.orderOut(nil)
