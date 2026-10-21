@@ -70,6 +70,32 @@ func saveSites(_ sites: [String: String]) {
 // Off: `defaults write com.kamalkhatwani.profiley analytics -bool false`.
 let posthogKey = "phc_CappPjX82qb8tAk4hH7oSYccrSnw2YT7QrQkKrN7F5Gf"  // public project key, safe to ship
 
+let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+
+// "1.10" is newer than "1.9": compare number by number, not as text.
+func isNewer(_ a: String, than b: String) -> Bool {
+    let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+    for i in 0..<max(x.count, y.count) {
+        let l = i < x.count ? x[i] : 0, r = i < y.count ? y[i] : 0
+        if l != r { return l > r }
+    }
+    return false
+}
+
+// Once a day, ask GitHub for the latest release and remember its version for the popup to mention.
+func checkForUpdate() {
+    assert(isNewer("1.10", than: "1.9") && !isNewer("1.7", than: "1.7") && isNewer("2", than: "1.9.9"))
+    let d = UserDefaults.standard, today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
+    guard d.string(forKey: "updateCheckDay") != today,
+          let url = URL(string: "https://api.github.com/repos/kamal0808/profiley/releases/latest") else { return }
+    d.set(today, forKey: "updateCheckDay")
+    URLSession.shared.dataTask(with: url) { data, _, _ in
+        guard let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tag = json["tag_name"] as? String else { return }
+        d.set(tag.hasPrefix("v") ? String(tag.dropFirst()) : tag, forKey: "latestVersion")
+    }.resume()
+}
+
 func ping() {
     let d = UserDefaults.standard
     guard !posthogKey.isEmpty, d.object(forKey: "analytics") as? Bool != false else { return }
@@ -279,6 +305,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard !self.gotURL && self.panel == nil && !self.launchedAtLogin else { return }
             ping()
+            checkForUpdate()
             if UserDefaults.standard.bool(forKey: "setupDone") { self.showManager(preview: nil) } else { self.showSetup(preview: nil, done: false) }
         }
     }
@@ -288,6 +315,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         gotURL = true
         lastURLAt = Date()
         ping()
+        checkForUpdate()
         let forcePicker = NSEvent.modifierFlags.contains(.option)
         let sites = loadSites()
         let all = loadProfiles()
@@ -357,6 +385,14 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             views.append(otherRow)
         }
         views.append(remember)
+        if let latest = UserDefaults.standard.string(forKey: "latestVersion"), isNewer(latest, than: currentVersion) {
+            let b = NSButton(title: "Profiley \(latest) is out · Get it", target: self, action: #selector(getUpdate))
+            b.bezelStyle = .inline
+            b.controlSize = .small
+            b.attributedTitle = NSAttributedString(string: "↑ Profiley \(latest) is out · Get it", attributes: [
+                .foregroundColor: NSColor(srgbRed: 0.78, green: 0.95, blue: 0.31, alpha: 1), .font: NSFont.systemFont(ofSize: 12, weight: .semibold)])
+            views.append(b)
+        }
         savedSite = nil
         if let m = savedMatch(host, in: loadSites()) {
             savedSite = m.site
@@ -496,6 +532,14 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     // Incognito in the main browser; never saved as a site's choice.
+    // Opens the download page in the user's own browser (not through Profiley, which would ask again).
+    @objc func getUpdate() {
+        guard let page = URL(string: "https://profiley.topc.social/install"),
+              let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleId) else { return }
+        next()
+        NSWorkspace.shared.open([page], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+    }
+
     func openPrivate() {
         let link = url
         next()
