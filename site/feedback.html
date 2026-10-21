@@ -16,6 +16,7 @@ textarea{min-height:140px;resize:vertical}
 .choice label{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #D5D8DF;border-radius:12px;padding:12px 16px;min-height:48px;cursor:pointer;font-weight:500}
 .choice input{width:auto;min-height:0;accent-color:#0C0D10}
 .lbl{display:block;font-weight:600;font-size:17px;margin:28px 0 10px}</style>
+<script src="/a.js" defer></script>
 </head>
 <body>
 
@@ -42,7 +43,7 @@ textarea{min-height:140px;resize:vertical}
     <p style="margin: 0 0 18px; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #3A3D45;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #C6F24E;"></span>It worked</p>
     <h1 style="margin: 0 0 20px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(40px, 6vw, 72px); line-height: 0.98; letter-spacing: -0.035em;">You picked this profile.</h1>
     <p style="margin: 0 0 8px; font-size: 20px; color: #3A3D45;">That's how every new site will ask. Tell us how setup went: the person who built it reads every one.</p>
-    <form name="feedback" method="POST" action="/thanks" data-netlify="true" netlify-honeypot="company">
+    <form onsubmit="if(window.track) track('feedback_submit')" name="feedback" method="POST" action="/thanks" data-netlify="true" netlify-honeypot="company">
       <input type="hidden" name="form-name" value="feedback">
       <p hidden><label>Leave this empty <input name="company"></label></p>
       <span class="lbl" id="q1">Did the popup show your profiles?</span>
