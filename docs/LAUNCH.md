@@ -83,9 +83,9 @@ Draft post for The App Pile megathread (r/macapps), in PCP format. Attach the de
 >
 > **Problem:** I keep a work and a personal Chrome profile. Links from Slack, WhatsApp and Mail open in whichever profile was last in front, so work docs keep landing in my personal account. Profiley sits in as your default browser. The first time it sees a site it asks which profile (press 1, 2, 3) and remembers. Hold Option to change your mind. It finds your browser and its profiles by itself: Chrome, Comet, Brave, Edge or Vivaldi.
 >
-> **Comparison:** Velja and Choosy can do this too, but you write the rules yourself. Profiley learns from one pick per site. BrowBro (also free) is better if you jump between different browsers; Profiley sticks to the profiles of the browser you already use, and doesn't do Safari, Firefox or Arc yet.
+> **Comparison:** Velja and Choosy can do this too, but you write the rules yourself. Profiley learns from one pick per site. BrowBro (also free) is better if you live in several browsers' profiles at once; Profiley works with the profiles of the browser you already use, and can send a site to Safari, Firefox or any other browser you have.
 >
-> **Pricing:** Free, MIT licensed, notarized by Apple. Built with a lot of help from Claude Code. https://profiley.topc.social
+> **Pricing:** Free, MIT licensed. Not notarized yet (Apple's fee is ₹8,700 a year); the site shows the one-time Open Anyway step. Built with a lot of help from Claude Code. https://profiley.topc.social
 >
 > If a link still lands in the wrong place, tell me which.
 
@@ -97,8 +97,8 @@ Within 7 days of the post: at least 10 downloads beyond the count on the day of 
 
 ## Before posting
 
-1. Notarize the release (topc-social/finicky-picker-tasks#8). Every public link waits for this, replies included: a stranger who hits "can't check it for malware" is gone. Friends install with the Open Anyway steps on /install.
+1. ~~Notarize the release first.~~ Decided 2026-10-21 (Kamal): launch unsigned. Signing is parked (topc-social/finicky-picker-tasks#8: Sayan's individual team can't give out the certificate). The site's Download button opens a short wizard that explains the one-time Open Anyway with a video, so strangers know what's coming. Say it plainly in every post (r/MacOSApps requires it).
 2. Start now: earn 10 karma in r/macapps with honest, link-free comments on threads Kamal has a real view on.
-3. Add a privacy page to profiley.topc.social (Profiley collects nothing; the feedback form goes to Netlify). Needed for r/MacOSApps, and with a terms page it opens the r/macapps main feed.
+3. Add a privacy page to profiley.topc.social (kamal0808/profiley#12, open) (Profiley collects nothing; the feedback form goes to Netlify). Needed for r/MacOSApps, and with a terms page it opens the r/macapps main feed.
 4. Check Profiley on macOS 27 (see the risk above).
 5. Post early in the month: November's App Pile opens around Nov 1, and a full month in the thread beats ten days left in October.

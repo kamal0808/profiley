@@ -225,6 +225,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var savedSite: String?
     var gotURL = false
     var launchedAtLogin = false
+    var lastURLAt = Date.distantPast
+    var others: [URL] = []
     var pending: [String] = []
     var manager: NSWindow?
     var addField: NSTextField?
@@ -270,12 +272,16 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // Links (and .html files) sent to us as the default browser.
     func application(_ app: NSApplication, open urls: [URL]) {
         gotURL = true
+        lastURLAt = Date()
         ping()
         let forcePicker = NSEvent.modifierFlags.contains(.option)
         let sites = loadSites()
         let all = loadProfiles()
         for u in urls {
             if !forcePicker, let host = u.host.map(siteName), let m = savedMatch(host, in: sites),
+               m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
+                NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+            } else if !forcePicker, let host = u.host.map(siteName), let m = savedMatch(host, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
                 openInBrowser(u.absoluteString, p)
             } else {
@@ -316,11 +322,30 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         remember = NSButton(checkboxWithTitle: "Always open \(host) this way", target: nil, action: nil)
         remember.state = preview != nil && CommandLine.arguments.contains("--ticked") ? .on : .off
         remember.font = .systemFont(ofSize: 12)
-        var views: [NSView] = [title, sub, row, remember]
+        var views: [NSView] = [title, sub, row]
+        others = otherBrowsers()
+        if !others.isEmpty {
+            let label = NSTextField(labelWithString: "Or open in")
+            label.font = .systemFont(ofSize: 12)
+            label.textColor = .secondaryLabelColor
+            let otherRow = NSStackView(views: [label])
+            otherRow.spacing = 6
+            for (i, app) in others.enumerated() {
+                let b = NSButton(title: FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: ""), target: self, action: #selector(openOther(_:)))
+                b.image = NSWorkspace.shared.icon(forFile: app.path)
+                b.image?.size = NSSize(width: 18, height: 18)
+                b.imagePosition = .imageLeading
+                b.bezelStyle = .inline
+                b.tag = i
+                otherRow.addArrangedSubview(b)
+            }
+            views.append(otherRow)
+        }
+        views.append(remember)
         savedSite = nil
         if let m = savedMatch(host, in: loadSites()) {
             savedSite = m.site
-            savedLabel = NSTextField(labelWithString: "Saved: \(m.site) always opens in \(m.profile)")
+            savedLabel = NSTextField(labelWithString: "Saved: \(m.site) always opens in \(savedTitle(m.profile))")
             savedLabel.font = .systemFont(ofSize: 12)
             savedLabel.textColor = .secondaryLabelColor
             let forget = NSButton(title: "Forget", target: self, action: #selector(forgetSaved(_:)))
@@ -395,6 +420,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             return
         }
+        // Activating the app would also raise a Saved sites or setup window left open, so tuck those away first.
+        manager?.orderOut(nil)
+        setup?.orderOut(nil)
         p.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         p.makeKey()
@@ -444,6 +472,51 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func picked(_ sender: NSButton) { choose(sender.tag) }
 
+    // Every other installed browser, for links that belong in a different one (Safari for Apple's sites, say).
+    func otherBrowsers() -> [URL] {
+        let known = ["com.apple.Safari", "com.google.Chrome", "ai.perplexity.comet", "com.brave.Browser", "com.microsoft.edgemac",
+                     "com.vivaldi.Vivaldi", "org.mozilla.firefox", "company.thebrowser.Browser", "com.openai.atlas",
+                     "com.operasoftware.Opera", "com.kagi.kagimacOS", "app.zen-browser.zen"]
+        return known.filter { $0 != browser.bundleId }.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+    }
+
+    @objc func openOther(_ sender: NSButton) {
+        guard others.indices.contains(sender.tag), let u = URL(string: url) else { return }
+        let app = others[sender.tag]
+        if remember.state == .on && !host.isEmpty, let id = Bundle(url: app)?.bundleIdentifier {
+            var sites = loadSites()
+            sites[host] = "app:" + id
+            saveSites(sites)
+            reloadManager()
+        }
+        NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        next()
+    }
+
+    // A saved site holds a profile name, or "app:<bundle id>" for another browser.
+    func savedTitle(_ value: String) -> String {
+        guard value.hasPrefix("app:") else { return value }
+        let id = String(value.dropFirst(4))
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return id }
+        return FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
+    }
+
+    // Menu of everything a site can open in: this browser's profiles, then the other browsers.
+    func choiceMenu(selecting value: String?) -> NSPopUpButton {
+        let pop = NSPopUpButton(frame: .zero, pullsDown: false)
+        for p in profiles { pop.addItem(withTitle: p.name); pop.lastItem?.representedObject = p.name }
+        let apps = otherBrowsers().compactMap { Bundle(url: $0)?.bundleIdentifier }.map { "app:" + $0 }
+        if !apps.isEmpty { pop.menu?.addItem(.separator()) }
+        for v in apps { pop.addItem(withTitle: savedTitle(v)); pop.lastItem?.representedObject = v }
+        if let value {
+            if pop.itemArray.first(where: { $0.representedObject as? String == value }) == nil {
+                pop.addItem(withTitle: savedTitle(value)); pop.lastItem?.representedObject = value  // a profile or app that's gone
+            }
+            pop.select(pop.itemArray.first { $0.representedObject as? String == value })
+        }
+        return pop
+    }
+
     @objc func openManager() {
         panel?.orderOut(nil)
         panel = nil
@@ -482,7 +555,6 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func reloadManager() {
         guard let w = manager else { return }
         let saved = loadSites().sorted { $0.key < $1.key }
-        let names = profiles.map(\.name)
 
         let rows = NSStackView()
         rows.orientation = .vertical
@@ -491,7 +563,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         rows.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
         let note = NSTextField(wrappingLabelWithString: saved.isEmpty
             ? "No saved sites yet. Tick \"Always open this site this way\" in the popup, or add one below."
-            : "These sites, and their subdomains, open straight in the profile shown.")
+            : "These sites, and their subdomains, open straight in the profile or browser shown.")
         note.font = .systemFont(ofSize: 12)
         note.textColor = .secondaryLabelColor
         note.preferredMaxLayoutWidth = 440
@@ -504,10 +576,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             label.font = .systemFont(ofSize: 13)
             label.lineBreakMode = .byTruncatingTail
             label.widthAnchor.constraint(equalToConstant: 200).isActive = true
-            let pop = NSPopUpButton(frame: .zero, pullsDown: false)
-            pop.addItems(withTitles: names)
-            if !names.contains(profile) { pop.addItem(withTitle: profile) }  // a profile that no longer exists
-            pop.selectItem(withTitle: profile)
+            let pop = choiceMenu(selecting: profile)
             pop.identifier = id
             pop.target = self
             pop.action = #selector(changeSaved(_:))
@@ -525,8 +594,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         field.widthAnchor.constraint(equalToConstant: 200).isActive = true
         field.target = self
         field.action = #selector(addSite)
-        let pop = NSPopUpButton(frame: .zero, pullsDown: false)
-        pop.addItems(withTitles: names)
+        let pop = choiceMenu(selecting: nil)
         let add = NSButton(title: "Add", target: self, action: #selector(addSite))
         add.bezelStyle = .rounded
         addField = field
@@ -562,7 +630,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func changeSaved(_ sender: NSPopUpButton) {
-        guard let site = sender.identifier?.rawValue, let profile = sender.titleOfSelectedItem else { return }
+        guard let site = sender.identifier?.rawValue, let profile = sender.selectedItem?.representedObject as? String else { return }
         var sites = loadSites()
         sites[site] = profile
         saveSites(sites)
@@ -577,7 +645,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func addSite() {
-        guard let field = addField, let profile = addPop?.titleOfSelectedItem else { return }
+        guard let field = addField, let profile = addPop?.selectedItem?.representedObject as? String else { return }
         let site = siteName(field.stringValue)
         guard site.contains("."), !site.contains(" ") else { NSSound.beep(); return }
         var sites = loadSites()
@@ -735,9 +803,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     // Stays running between links so the next one skips a cold start; opening it again shows its window.
+    // macOS also sends a reopen alongside each link to a running app, so only a reopen with no link around it shows a window.
     func applicationShouldHandleReopen(_ app: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if panel == nil && manager == nil && setup == nil {
-            if UserDefaults.standard.bool(forKey: "setupDone") { showManager(preview: nil) } else { showSetup(preview: nil, done: false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            guard Date().timeIntervalSince(self.lastURLAt) > 1, self.panel == nil else { return }
+            if let w = self.setup ?? self.manager { NSApp.activate(ignoringOtherApps: true); w.makeKeyAndOrderFront(nil); return }
+            if UserDefaults.standard.bool(forKey: "setupDone") { self.showManager(preview: nil) } else { self.showSetup(preview: nil, done: false) }
         }
         return false
     }
