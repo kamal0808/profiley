@@ -129,6 +129,9 @@ func isDefaultBrowser() -> Bool {
         == Bundle.main.bundleURL.standardizedFileURL
 }
 
+// The "Private" card in the popup: an incognito window of the main browser, never saved.
+let privateDir = "__private__"
+
 struct Profile {
     let dir: String
     let name: String
@@ -193,6 +196,17 @@ final class AvatarView: NSView {
         } else {
             profile.color.setFill()
             NSBezierPath(ovalIn: inner).fill()
+        }
+        if profile.dir == privateDir {
+            NSColor(white: 0.12, alpha: 1).setFill()
+            NSBezierPath(ovalIn: inner).fill()
+            let cfg = NSImage.SymbolConfiguration(pointSize: 26, weight: .semibold).applying(.init(paletteColors: [.white]))
+            if let g = NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: "Private window")?.withSymbolConfiguration(cfg) {
+                g.draw(in: NSRect(x: bounds.midX - g.size.width / 2, y: bounds.midY - g.size.height / 2, width: g.size.width, height: g.size.height))
+            }
+            NSColor.white.withAlphaComponent(0.25).setStroke()
+            ring.stroke()
+            return
         }
         let letter = NSAttributedString(string: String(profile.name.prefix(1)).uppercased(), attributes: [
             .font: NSFont.systemFont(ofSize: 26, weight: .semibold), .foregroundColor: NSColor.white,
@@ -318,21 +332,18 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         for (i, p) in profiles.enumerated() {
             row.addArrangedSubview(card(p, index: i))
         }
+        row.addArrangedSubview(card(Profile(dir: privateDir, name: "Private", color: .black, avatar: nil), index: profiles.count))
 
         remember = NSButton(checkboxWithTitle: "Always open \(host) this way", target: nil, action: nil)
         remember.state = preview != nil && CommandLine.arguments.contains("--ticked") ? .on : .off
         remember.font = .systemFont(ofSize: 12)
         var views: [NSView] = [title, sub, row]
         others = otherBrowsers()
-        do {
+        if !others.isEmpty {
             let label = NSTextField(labelWithString: "Or open in")
             label.font = .systemFont(ofSize: 12)
             label.textColor = .secondaryLabelColor
-            let priv = NSButton(title: "Private window", target: self, action: #selector(openPrivate))
-            priv.image = NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)
-            priv.imagePosition = .imageLeading
-            priv.bezelStyle = .inline
-            let otherRow = NSStackView(views: [label, priv])
+            let otherRow = NSStackView(views: [label])
             otherRow.spacing = 6
             for (i, app) in others.enumerated() {
                 let b = NSButton(title: FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: ""), target: self, action: #selector(openOther(_:)))
@@ -359,7 +370,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             savedRow.spacing = 8
             views.append(savedRow)
         }
-        let hint = NSTextField(labelWithString: "Press 1–\(profiles.count) · hold ⌥ while clicking a link to change a saved site")
+        let hint = NSTextField(labelWithString: "Press 1–\(profiles.count + 1) · hold ⌥ while clicking a link to change a saved site")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
 
@@ -485,7 +496,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     // Incognito in the main browser; never saved as a site's choice.
-    @objc func openPrivate() {
+    func openPrivate() {
         let link = url
         next()
         run("/usr/bin/open", ["-na", browser.name, "--args", "--incognito", link])
@@ -826,6 +837,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func choose(_ i: Int) {
+        if i == profiles.count { return openPrivate() }
         guard profiles.indices.contains(i) else { return }
         let p = profiles[i], link = url
         if remember.state == .on && !host.isEmpty {
