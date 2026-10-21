@@ -128,5 +128,74 @@ textarea{min-height:140px;resize:vertical}
   </footer>
 </div>
 
+<style>
+#wiz{border:0;padding:0;border-radius:24px;width:min(560px,calc(100vw - 32px));background:#fff;color:#0C0D10;font-family:'Figtree',system-ui,sans-serif;box-shadow:0 40px 100px rgba(12,13,16,.35)}
+#wiz::backdrop{background:rgba(12,13,16,.55)}
+#wiz .w-step{display:none;padding:32px 32px 24px}
+#wiz .w-step.on{display:block}
+#wiz h2{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:30px;line-height:1.05;letter-spacing:-.02em;margin:0 0 14px}
+#wiz p{margin:0 0 14px;font-size:17px;line-height:1.5;color:#3A3D45}
+#wiz img{display:block;width:100%;height:auto;border-radius:14px;border:1px solid #E3E5EA;margin:6px 0 16px}
+#wiz .w-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 32px 28px}
+#wiz .w-dots{display:flex;gap:6px}
+#wiz .w-dots span{width:8px;height:8px;border-radius:50%;background:#D5D8DF}
+#wiz .w-dots span.on{background:#0C0D10}
+#wiz button,#wiz .w-go{font:inherit;font-weight:600;font-size:17px;border:0;border-radius:14px;padding:13px 22px;min-height:48px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+#wiz .w-next,#wiz .w-go{background:#0C0D10;color:#fff}
+#wiz .w-back{background:#EEF0F3;color:#0C0D10}
+#wiz .w-x{position:absolute;top:14px;right:14px;width:40px;height:40px;min-height:0;padding:0;justify-content:center;background:transparent;font-size:22px;color:#565A63}
+#wiz ul{list-style:none;padding:0;margin:0 0 18px}
+#wiz li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:17px;color:#3A3D45}
+#wiz li b{color:#0C0D10}
+#wiz .tick{flex:none;width:24px;height:24px;border-radius:12px;background:#C6F24E;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+</style>
+<dialog id="wiz" aria-labelledby="w1">
+  <button class="w-x" type="button" aria-label="Close" data-close>×</button>
+  <section class="w-step on">
+    <h2 id="w1">Your Mac will warn you. Here’s why.</h2>
+    <p>Apple charges ₹8,700 a year to sign apps. Profiley is free and made by one person, so it isn’t signed yet. When people start paying for it, signing is the first thing that money buys.</p>
+    <p>Until then, your Mac will say it “could not verify” Profiley. The code is open on <a href="https://github.com/kamal0808/profiley">GitHub</a>, so anyone can check it does nothing but route your links.</p>
+  </section>
+  <section class="w-step">
+    <h2>Getting past the warning, once</h2>
+    <p>When it warns you, press <b>Done</b>, not Move to Bin.</p>
+    <img src="step-warning.jpg" alt="The macOS warning with the Done button highlighted" width="720" height="480" loading="lazy">
+    <p>Then System Settings → Privacy &amp; Security → <b>Open Anyway</b>. You never see the warning again.</p>
+    <img src="step-open-anyway.jpg" alt="Privacy and Security with Open Anyway highlighted" width="720" height="380" loading="lazy">
+  </section>
+  <section class="w-step">
+    <h2>It will ask to be your default browser</h2>
+    <p>That’s the only way links from Slack, WhatsApp and Mail can reach it. Profiley never shows web pages itself: it hands every link straight to your own browser, in the right profile.</p>
+    <img src="step-default.jpg" alt="macOS asking to change the default web browser to Profiley" width="720" height="460" loading="lazy">
+    <p>Choose <b>Use “Profiley”</b>. You can switch back any time in System Settings → Desktop &amp; Dock.</p>
+  </section>
+  <section class="w-step">
+    <h2>Ready?</h2>
+    <ul>
+      <li><span class="tick">✓</span><span>Your Mac warns you once: press <b>Done</b>, then <b>Open Anyway</b>.</span></li>
+      <li><span class="tick">✓</span><span>It asks to be your default browser: say <b>yes</b>, it passes every link on.</span></li>
+      <li><span class="tick">✓</span><span>Free, open source, and stays on your Mac.</span></li>
+    </ul>
+  </section>
+  <div class="w-foot">
+    <div class="w-dots" aria-hidden="true"><span class="on"></span><span></span><span></span><span></span></div>
+    <div style="display:flex;gap:10px">
+      <button class="w-back" type="button" hidden>Back</button>
+      <button class="w-next" type="button">Next</button>
+      <a class="w-go" href="/install" hidden>I understand, download</a>
+    </div>
+  </div>
+</dialog>
+<script>
+(function(){
+  var d=document.getElementById('wiz'); if(!d||!d.showModal) return;
+  var steps=d.querySelectorAll('.w-step'), dots=d.querySelectorAll('.w-dots span'), back=d.querySelector('.w-back'), next=d.querySelector('.w-next'), go=d.querySelector('.w-go'), i=0;
+  function show(n){ i=n; steps.forEach(function(s,k){s.classList.toggle('on',k===n)}); dots.forEach(function(s,k){s.classList.toggle('on',k===n)}); back.hidden=n===0; next.hidden=n===steps.length-1; go.hidden=n!==steps.length-1; }
+  next.onclick=function(){show(i+1)}; back.onclick=function(){show(i-1)};
+  d.querySelector('[data-close]').onclick=function(){d.close()};
+  document.querySelectorAll('a[href="/install"]').forEach(function(a){ if(d.contains(a)) return; a.addEventListener('click',function(e){ e.preventDefault(); show(0); d.showModal(); }); });
+})();
+</script>
+
 </body>
 </html>
