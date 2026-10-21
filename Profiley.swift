@@ -250,6 +250,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let all = loadProfiles()
         for u in urls {
             if !forcePicker, let host = u.host.map(siteName), let m = savedMatch(host, in: sites),
+               m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
+                NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+            } else if !forcePicker, let host = u.host.map(siteName), let m = savedMatch(host, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
                 openInBrowser(u.absoluteString, p)
             } else {
@@ -313,7 +316,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         savedSite = nil
         if let m = savedMatch(host, in: loadSites()) {
             savedSite = m.site
-            savedLabel = NSTextField(labelWithString: "Saved: \(m.site) always opens in \(m.profile)")
+            savedLabel = NSTextField(labelWithString: "Saved: \(m.site) always opens in \(savedTitle(m.profile))")
             savedLabel.font = .systemFont(ofSize: 12)
             savedLabel.textColor = .secondaryLabelColor
             let forget = NSButton(title: "Forget", target: self, action: #selector(forgetSaved(_:)))
@@ -447,8 +450,39 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func openOther(_ sender: NSButton) {
         guard others.indices.contains(sender.tag), let u = URL(string: url) else { return }
-        NSWorkspace.shared.open([u], withApplicationAt: others[sender.tag], configuration: NSWorkspace.OpenConfiguration())
+        let app = others[sender.tag]
+        if remember.state == .on && !host.isEmpty, let id = Bundle(url: app)?.bundleIdentifier {
+            var sites = loadSites()
+            sites[host] = "app:" + id
+            saveSites(sites)
+            reloadManager()
+        }
+        NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
         next()
+    }
+
+    // A saved site holds a profile name, or "app:<bundle id>" for another browser.
+    func savedTitle(_ value: String) -> String {
+        guard value.hasPrefix("app:") else { return value }
+        let id = String(value.dropFirst(4))
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return id }
+        return FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
+    }
+
+    // Menu of everything a site can open in: this browser's profiles, then the other browsers.
+    func choiceMenu(selecting value: String?) -> NSPopUpButton {
+        let pop = NSPopUpButton(frame: .zero, pullsDown: false)
+        for p in profiles { pop.addItem(withTitle: p.name); pop.lastItem?.representedObject = p.name }
+        let apps = otherBrowsers().compactMap { Bundle(url: $0)?.bundleIdentifier }.map { "app:" + $0 }
+        if !apps.isEmpty { pop.menu?.addItem(.separator()) }
+        for v in apps { pop.addItem(withTitle: savedTitle(v)); pop.lastItem?.representedObject = v }
+        if let value {
+            if pop.itemArray.first(where: { $0.representedObject as? String == value }) == nil {
+                pop.addItem(withTitle: savedTitle(value)); pop.lastItem?.representedObject = value  // a profile or app that's gone
+            }
+            pop.select(pop.itemArray.first { $0.representedObject as? String == value })
+        }
+        return pop
     }
 
     @objc func openManager() {
@@ -489,7 +523,6 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func reloadManager() {
         guard let w = manager else { return }
         let saved = loadSites().sorted { $0.key < $1.key }
-        let names = profiles.map(\.name)
 
         let rows = NSStackView()
         rows.orientation = .vertical
@@ -498,7 +531,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         rows.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
         let note = NSTextField(wrappingLabelWithString: saved.isEmpty
             ? "No saved sites yet. Tick \"Always open this site this way\" in the popup, or add one below."
-            : "These sites, and their subdomains, open straight in the profile shown.")
+            : "These sites, and their subdomains, open straight in the profile or browser shown.")
         note.font = .systemFont(ofSize: 12)
         note.textColor = .secondaryLabelColor
         note.preferredMaxLayoutWidth = 440
@@ -511,10 +544,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             label.font = .systemFont(ofSize: 13)
             label.lineBreakMode = .byTruncatingTail
             label.widthAnchor.constraint(equalToConstant: 200).isActive = true
-            let pop = NSPopUpButton(frame: .zero, pullsDown: false)
-            pop.addItems(withTitles: names)
-            if !names.contains(profile) { pop.addItem(withTitle: profile) }  // a profile that no longer exists
-            pop.selectItem(withTitle: profile)
+            let pop = choiceMenu(selecting: profile)
             pop.identifier = id
             pop.target = self
             pop.action = #selector(changeSaved(_:))
@@ -532,8 +562,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         field.widthAnchor.constraint(equalToConstant: 200).isActive = true
         field.target = self
         field.action = #selector(addSite)
-        let pop = NSPopUpButton(frame: .zero, pullsDown: false)
-        pop.addItems(withTitles: names)
+        let pop = choiceMenu(selecting: nil)
         let add = NSButton(title: "Add", target: self, action: #selector(addSite))
         add.bezelStyle = .rounded
         addField = field
@@ -569,7 +598,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func changeSaved(_ sender: NSPopUpButton) {
-        guard let site = sender.identifier?.rawValue, let profile = sender.titleOfSelectedItem else { return }
+        guard let site = sender.identifier?.rawValue, let profile = sender.selectedItem?.representedObject as? String else { return }
         var sites = loadSites()
         sites[site] = profile
         saveSites(sites)
@@ -584,7 +613,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func addSite() {
-        guard let field = addField, let profile = addPop?.titleOfSelectedItem else { return }
+        guard let field = addField, let profile = addPop?.selectedItem?.representedObject as? String else { return }
         let site = siteName(field.stringValue)
         guard site.contains("."), !site.contains(" ") else { NSSound.beep(); return }
         var sites = loadSites()
