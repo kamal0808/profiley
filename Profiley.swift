@@ -65,6 +65,13 @@ func saveSites(_ sites: [String: String]) {
     }
 }
 
+// Links Profiley has opened, kept on this Mac only.
+func countOpen() { UserDefaults.standard.set(UserDefaults.standard.integer(forKey: "linksOpened") + 1, forKey: "linksOpened") }
+func linksOpened() -> String {
+    let n = UserDefaults.standard.integer(forKey: "linksOpened")
+    return "\(n.formatted()) link\(n == 1 ? "" : "s")"
+}
+
 // Anonymous usage count on PostHog: "app_install" once, then "app_active" at most once a day,
 // with a random ID and the app version, no person profile.
 // Off: `defaults write com.kamalkhatwani.profiley analytics -bool false`.
@@ -347,6 +354,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
                 NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                countOpen()
             } else if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
                 openInBrowser(u.absoluteString, p)
@@ -439,7 +447,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             savedRow.spacing = 8
             views.append(savedRow)
         }
-        let hint = NSTextField(labelWithString: "Press 1–\(profiles.count + 1) · hold ⌥ while clicking a link to change a saved site")
+        let hint = NSTextField(labelWithString: "Press 1–\(profiles.count + 1) · hold ⌥ while clicking a link to change a saved site · \(linksOpened()) opened")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
 
@@ -577,6 +585,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let link = url
         next()
         launchBrowser(["--incognito", link])
+        countOpen()
         bringBrowserForward()
     }
 
@@ -590,6 +599,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             reloadManager()
         }
         NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        countOpen()
         next()
     }
 
@@ -661,6 +671,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         rows.alignment = .leading
         rows.spacing = 8
         rows.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
+        let count = NSTextField(labelWithString: "Profiley has opened \(linksOpened()) for you")
+        count.font = .systemFont(ofSize: 13, weight: .semibold)
+        rows.addArrangedSubview(count)
         let note = NSTextField(wrappingLabelWithString: saved.isEmpty
             ? "No saved sites yet. Tick \"Always open this site this way\" in the popup, or add one below."
             : "These sites (and their subdomains) and links (and everything under them) open straight in the profile or browser shown. The longest match wins.")
@@ -932,6 +945,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func openInBrowser(_ url: String, _ p: Profile) {
         NSLog("Opening %@ in %@ profile %@", url, browser.name, p.name)
         launchBrowser(["--profile-directory=\(p.dir)", url])
+        countOpen()
         bringBrowserForward()
     }
 
