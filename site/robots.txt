@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://profiley.topc.social/sitemap.xml

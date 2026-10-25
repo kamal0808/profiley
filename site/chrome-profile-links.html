@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How to open links in a specific Chrome profile on Mac | Profiley</title>
+<link rel="canonical" href="https://profiley.topc.social/chrome-profile-links">
+<meta name="description" content="Chrome opens links from Slack and other apps in the last profile you used. Three built-in workarounds, and how to make each site always open in the right profile.">
+<meta property="og:title" content="How to open links in a specific Chrome profile on Mac">
+<meta property="og:description" content="Chrome opens links from Slack and other apps in the last profile you used. Three built-in workarounds, and how to make each site always open in the right profile.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F5F6F8}a{color:#0C0D10}a:hover{color:#3A3D45}*{box-sizing:border-box}
+input,textarea,select{width:100%;font:inherit;font-size:17px;color:#0C0D10;background:#fff;border:1px solid #D5D8DF;border-radius:12px;padding:13px 14px;min-height:48px}
+textarea{min-height:140px;resize:vertical}
+.choice{display:flex;gap:10px;flex-wrap:wrap}
+.choice label{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #D5D8DF;border-radius:12px;padding:12px 16px;min-height:48px;cursor:pointer;font-weight:500}
+.choice input{width:auto;min-height:0;accent-color:#0C0D10}
+.lbl{display:block;font-weight:600;font-size:17px;margin:28px 0 10px}</style>
+<script src="/a.js" defer></script>
+</head>
+<body>
+
+
+<div style="width: 100%; background: #F5F6F8; color: #0C0D10; font-family: 'Figtree', system-ui, sans-serif; font-size: 18px; line-height: 1.55;">
+
+  <header style="max-width: 1180px; margin: 0 auto; padding: 24px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+    <a href="/" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #0C0D10;">
+      <span aria-hidden="true" style="position: relative; width: 34px; height: 22px; display: inline-block;">
+        <span style="position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; background: #1F9E8F;"></span>
+        <span style="position: absolute; left: 12px; top: 0; width: 22px; height: 22px; border-radius: 50%; background: #C6F24E; mix-blend-mode: multiply;"></span>
+      </span>
+      <span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.02em;">Profiley</span>
+    </a>
+    <nav style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+      <a href="/#how" style="text-decoration: none; font-size: 16px; font-weight: 500; color: #3A3D45;">How it works</a>
+      <a href="https://github.com/kamal0808/profiley" style="text-decoration: none; font-size: 16px; font-weight: 500; color: #3A3D45;">GitHub</a>
+      <a href="https://github.com/kamal0808/profiley/releases/latest/download/Profiley.zip" style="text-decoration: none; background: #0C0D10; color: #FFFFFF; font-weight: 600; font-size: 15px; padding: 11px 18px; border-radius: 999px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center;">Download</a>
+    </nav>
+  </header>
+
+  
+  <main style="max-width: 680px; margin: 0 auto; padding: 48px 24px 120px;">
+    <h1 style="margin: 0 0 16px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(36px, 5.5vw, 60px); line-height: 1.02; letter-spacing: -0.035em;">How to open links in a specific Chrome profile on Mac</h1>
+    <p style="margin: 0 0 28px; font-size: 20px; color: #3A3D45;">You click a link in Slack, and it opens in your personal Chrome. Again. Here’s why that happens, the three ways around it that Chrome already gives you, and the one-click fix.</p>
+    <h2 style="margin: 40px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;">Why Chrome picks the wrong profile</h2>
+    <p style="margin: 0 0 16px; color: #3A3D45;">When you click a link in another app (Slack, Mail, Notion, Calendar), macOS hands it to your default browser. It hands it to the <em>browser</em>, not to a profile. Chrome then opens the link in whichever profile window you used last.</p>
+    <p style="margin: 0 0 16px; color: #3A3D45;">So if you were just reading something in your personal profile, the work link from Slack lands there too: logged into the wrong Google account, “You need access”, the wrong Jira, the wrong everything. Chrome on Mac has no setting to say “links from Slack go to Work” or “docs.google.com always opens in Work”.</p>
+    <h2 style="margin: 40px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;">Way 1: “Open link as” (built into Chrome)</h2>
+    <p style="margin: 0 0 16px; color: #3A3D45;">If the link is already inside Chrome, right-click it. When you have more than one profile, the menu has <strong>Open link as</strong>, with a list of your profiles. Pick one and the link opens in that profile’s window.</p>
+    <p style="margin: 0 0 16px; color: #3A3D45;">It works, but only for links that are already in Chrome. A link from Slack has already opened in the wrong profile by the time you can right-click anything. Most people end up copying the address, switching profiles, opening a new tab and pasting. Every single time.</p>
+    <h2 style="margin: 40px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;">Way 2: open the right window first</h2>
+    <p style="margin: 0 0 16px; color: #3A3D45;">Chrome uses the profile you used last. So before you click the link in Slack, click on a window of the profile you want, then go back to Slack and click. The link follows that window.</p>
+    <p style="margin: 0 0 16px; color: #3A3D45;">This is free and needs nothing installed, but you have to remember it before every click, and it breaks the moment you touch the other profile.</p>
+    <h2 style="margin: 40px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;">Way 3: Terminal, for one-off links</h2>
+    <p style="margin: 0 0 16px; color: #3A3D45;">Chrome can be told which profile to use from the command line. First find the profile’s folder name: in that profile, open <code>chrome://version</code> and look at <strong>Profile Path</strong>. The last part is the folder, usually <code>Default</code> for the first profile and <code>Profile 1</code>, <code>Profile 2</code> and so on after that. Then:</p>
+    <pre style="margin: 0 0 16px; padding: 14px 16px; background: #fff; border: 1px solid #D5D8DF; border-radius: 12px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 14px;">open -na "Google Chrome" --args --profile-directory="Profile 1" "https://example.com"</pre>
+    <p style="margin: 0 0 16px; color: #3A3D45;">Good for scripts and shortcuts. Useless for links you click in other apps, because macOS doesn’t run this when you click.</p>
+    <h2 style="margin: 40px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;">Other browsers</h2>
+    <p style="margin: 0 0 16px; color: #3A3D45;">Microsoft Edge has a setting for one default profile for links from other apps. That fixes it if you only ever want one profile for outside links, but not when work links should go to Work and personal ones to Personal. Brave and Vivaldi behave like Chrome.</p>
+    <h2 style="margin: 40px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;">The fix: pick a profile per site, once</h2>
+    <p style="margin: 0 0 16px; color: #3A3D45;">What you actually want is a rule per site: “docs.google.com opens in Work, youtube.com opens in Personal”. macOS can’t do that on its own, because it only knows browsers. The way to get it is a small app that sits in place of your default browser, looks at each link, and passes it to the right browser profile.</p>
+    <p style="margin: 0 0 16px; color: #3A3D45;">That’s what <a href="/">Profiley</a> does. It’s free and open source, for Mac:</p>
+    <ol style="margin: 0 0 16px; padding-left: 22px; color: #3A3D45;"><li style="margin: 0 0 8px;"><strong>Install it.</strong> It finds the browser you use and its profiles, pictures and all. Your Mac asks to make Profiley the default browser: say yes. That’s how links reach it.</li><li style="margin: 0 0 8px;"><strong>Click any link.</strong> The first time you open a site, a small window asks which profile. Click one, or press 1, 2 or 3.</li><li style="margin: 0 0 8px;"><strong>Tick to remember.</strong> Next time that site opens straight in the right profile, with no asking.</li></ol>
+    <p style="margin: 0 0 16px; color: #3A3D45;">Hold Option while clicking a link to get the question back for a site you saved. Open Profiley from Spotlight to see, edit or remove every saved site. It works with Chrome, Comet, Brave, Edge and Vivaldi on macOS 12 or later. There’s no extension and no account, and your saved sites live in one file on your Mac.</p>
+    <p style="margin: 0 0 16px; color: #3A3D45;">One honest catch: Profiley isn’t signed by Apple yet, so the first time you open it your Mac asks you to confirm once. The <a href="/install">install steps</a> show exactly where to click.</p>
+    <h2 style="margin: 40px 0 10px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: -0.02em;">Other apps that do this</h2>
+    <p style="margin: 0 0 16px; color: #3A3D45;">Profiley isn’t the only one. Choosy (paid) and Velja pick a browser for each link too, and Finicky does it if you write your rules in a JavaScript config file. Profiley’s difference is that it’s built around profiles first: it asks the first time and learns, so there’s nothing to configure up front.</p>
+    <p style="margin: 40px 0 0;"><a href="https://github.com/kamal0808/profiley/releases/latest/download/Profiley.zip" style="text-decoration: none; background: #0C0D10; color: #FFFFFF; font-weight: 600; font-size: 17px; padding: 14px 24px; border-radius: 999px; display: inline-flex; align-items: center; min-height: 48px;">Download Profiley for Mac, free</a></p>
+  </main>
+  <footer style="border-top: 1px solid #E3E5EA;">
+    <div style="max-width: 1180px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; font-size: 15px; color: #565A63;">
+      <p style="margin: 0; max-width: 620px;">Made by <a href="https://github.com/kamal0808">Kamal</a>, built in public on <a href="https://www.ideato.social/projects/profiley">Ideato</a>. Want Arc, Safari or Firefox support? Help build it and own a share of Profiley. A <a href="https://topc.social">TOPC</a> project.</p>
+      <p style="margin: 0; display: flex; gap: 20px; flex-wrap: wrap;"><a href="https://github.com/kamal0808/profiley">Source on GitHub</a><a href="/feedback">Send feedback</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></p>
+    </div>
+  </footer>
+</div>
+
+</body>
+</html>
