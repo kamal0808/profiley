@@ -911,15 +911,44 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    // Runs the browser's own binary, which hands the args to the open window.
-    // `open -na` did the same through a throwaway second instance that left ghost icons in the Dock.
+    // Any new browser process, even one that just forwards the link and quits, can leave a ghost icon in the Dock.
+    // So a running browser gets the link over its own singleton socket, as a second instance would send it.
     func launchBrowser(_ args: [String]) {
+        if sendToRunningBrowser(args) { return }
         if let exe = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleId)
             .flatMap({ Bundle(url: $0)?.executablePath }) {
             run(exe, args)
         } else {
             run("/usr/bin/open", ["-na", browser.name, "--args"] + args)
         }
+    }
+
+    // Chromium's protocol: "START\0<cwd>\0<argv0>\0<args…>", answered with "ACK".
+    func sendToRunningBrowser(_ args: [String]) -> Bool {
+        let path = home + "/Library/Application Support/" + browser.support + "/SingletonSocket"
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var tv = timeval(tv_sec: 2, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: path),
+              target.utf8.count < MemoryLayout.size(ofValue: addr.sun_path) else { return false }
+        withUnsafeMutableBytes(of: &addr.sun_path) { buf in
+            for (i, b) in target.utf8.enumerated() { buf[i] = b }
+        }
+        let connected = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        guard connected == 0 else { return false }
+        let msg = (["START", FileManager.default.currentDirectoryPath, "browser"] + args).joined(separator: "\0")
+        let sent = msg.utf8CString.withUnsafeBufferPointer { write(fd, $0.baseAddress, $0.count - 1) }
+        guard sent == msg.utf8.count else { return false }
+        shutdown(fd, SHUT_WR)
+        var reply = [UInt8](repeating: 0, count: 16)
+        let n = read(fd, &reply, reply.count)
+        return n >= 3 && String(decoding: reply[0..<3], as: UTF8.self) == "ACK"
     }
 
     func run(_ path: String, _ args: [String]) {
