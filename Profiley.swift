@@ -275,7 +275,7 @@ final class ProfileButton: NSButton {
     override func mouseExited(with event: NSEvent) { onHover?(false) }
 }
 
-final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     var panel: NSPanel?
     var url = ""
     var host = ""
@@ -294,6 +294,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var addPop: NSPopUpButton?
     var setup: NSWindow?
     var setupBrowser = browser
+    var statusItem: NSStatusItem?
+    let countItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
     func applicationWillFinishLaunching(_ n: Notification) {
         let e = NSAppleEventManager.shared().currentAppleEvent
@@ -332,6 +334,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         startAtLogin()
+        updateStatusItem()
         // Opened by hand rather than by a link: show the saved sites.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard !self.gotURL && self.panel == nil && !self.launchedAtLogin else { return }
@@ -447,7 +450,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             savedRow.spacing = 8
             views.append(savedRow)
         }
-        let hint = NSTextField(labelWithString: "Press 1–\(profiles.count + 1) · hold ⌥ while clicking a link to change a saved site · \(linksOpened()) opened")
+        let hint = NSTextField(labelWithString: "Press 1–\(profiles.count + 1) · hold ⌥ while clicking a link to change a saved site")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
 
@@ -633,6 +636,41 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         showManager(preview: nil)
     }
 
+    // The menu bar icon: the link count, Saved sites and Quit, since the app has no Dock icon or menu of its own.
+    func updateStatusItem() {
+        if UserDefaults.standard.bool(forKey: "hideMenuBarIcon") {
+            if let s = statusItem { NSStatusBar.system.removeStatusItem(s) }
+            statusItem = nil
+            return
+        }
+        guard statusItem == nil else { return }
+        let s = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        s.button?.image = NSImage(systemSymbolName: "person.2.circle", accessibilityDescription: "Profiley")
+        let menu = NSMenu()
+        menu.delegate = self
+        menu.addItem(countItem)
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Saved sites…", action: #selector(openManager), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Hide menu bar icon", action: #selector(hideStatusItem), keyEquivalent: "").target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Quit Profiley", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        s.menu = menu
+        statusItem = s
+    }
+
+    func menuWillOpen(_ menu: NSMenu) { countItem.title = "\(linksOpened()) opened" }
+
+    @objc func hideStatusItem() {
+        UserDefaults.standard.set(true, forKey: "hideMenuBarIcon")
+        updateStatusItem()
+        reloadManager()
+    }
+
+    @objc func toggleStatusItem(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .off, forKey: "hideMenuBarIcon")
+        updateStatusItem()
+    }
+
     // A window listing saved sites: change the profile each one opens in, or remove it.
     func showManager(preview: String?) {
         if profiles.isEmpty { profiles = loadProfiles() }
@@ -718,6 +756,11 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let last = rows.arrangedSubviews.last { rows.setCustomSpacing(16, after: last) }
         rows.addArrangedSubview(addRow)
 
+        let showIcon = NSButton(checkboxWithTitle: "Show Profiley in the menu bar", target: self, action: #selector(toggleStatusItem(_:)))
+        showIcon.state = UserDefaults.standard.bool(forKey: "hideMenuBarIcon") ? .off : .on
+        rows.setCustomSpacing(20, after: addRow)
+        rows.addArrangedSubview(showIcon)
+
         if !isDefaultBrowser() {
             let note = NSTextField(wrappingLabelWithString: "Profiley isn't your default browser yet, so links from other apps won't come here.")
             note.font = .systemFont(ofSize: 12)
@@ -725,7 +768,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             note.preferredMaxLayoutWidth = 440
             let make = NSButton(title: "Make default browser", target: self, action: #selector(makeDefaultPressed))
             make.bezelStyle = .rounded
-            rows.setCustomSpacing(20, after: addRow)
+            rows.setCustomSpacing(20, after: showIcon)
             rows.addArrangedSubview(note)
             rows.addArrangedSubview(make)
         }
