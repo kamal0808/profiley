@@ -543,7 +543,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func openPrivate() {
         let link = url
         next()
-        run("/usr/bin/open", ["-na", browser.name, "--args", "--incognito", link])
+        launchBrowser(["--incognito", link])
         bringBrowserForward()
     }
 
@@ -896,7 +896,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func openInBrowser(_ url: String, _ p: Profile) {
         NSLog("Opening %@ in %@ profile %@", url, browser.name, p.name)
-        run("/usr/bin/open", ["-na", browser.name, "--args", "--profile-directory=\(p.dir)", url])
+        launchBrowser(["--profile-directory=\(p.dir)", url])
         bringBrowserForward()
     }
 
@@ -908,6 +908,17 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.activate(options: [.activateAllWindows])
             }
+        }
+    }
+
+    // Runs the browser's own binary, which hands the args to the open window.
+    // `open -na` did the same through a throwaway second instance that left ghost icons in the Dock.
+    func launchBrowser(_ args: [String]) {
+        if let exe = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleId)
+            .flatMap({ Bundle(url: $0)?.executablePath }) {
+            run(exe, args)
+        } else {
+            run("/usr/bin/open", ["-na", browser.name, "--args"] + args)
         }
     }
 
