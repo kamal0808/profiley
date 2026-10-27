@@ -690,7 +690,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let field = NSTextField(string: addField?.stringValue ?? "")
-        field.placeholderString = "Add a site or link, e.g. example.com"
+        field.placeholderString = "Site or link, e.g. example.com"
         field.font = .systemFont(ofSize: 13)
         field.widthAnchor.constraint(equalToConstant: 200).isActive = true
         field.target = self
