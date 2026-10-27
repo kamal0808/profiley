@@ -139,9 +139,22 @@ func siteName(_ s: String) -> String {
     return h
 }
 
-// The saved site covering this host: itself or its closest parent domain.
-func savedMatch(_ host: String, in sites: [String: String]) -> (site: String, profile: String)? {
-    var h = host
+// "https://meet.google.com/abc-defg-hij?x=1" -> ["meet.google.com", "meet.google.com/abc-defg-hij"]: the site, then each path level.
+func linkLevels(_ url: String) -> [String] {
+    guard let u = URL(string: url), let host = u.host.map(siteName) else { return [] }
+    var levels = [host], path = host
+    for seg in u.pathComponents where seg != "/" {
+        path += "/" + seg
+        levels.append(path)
+    }
+    return levels
+}
+
+// The saved rule covering this link: its longest saved path level, else its host or closest parent domain.
+func savedMatch(_ url: String, in sites: [String: String]) -> (site: String, profile: String)? {
+    let levels = linkLevels(url)
+    for l in levels.dropFirst().reversed() { if let p = sites[l] { return (l, p) } }
+    var h = levels.first ?? ""
     while !h.isEmpty {
         if let p = sites[h] { return (h, p) }
         guard let dot = h.firstIndex(of: ".") else { break }
@@ -260,6 +273,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var url = ""
     var host = ""
     var remember: NSButton!
+    var rememberPop: NSPopUpButton!
     var savedLabel: NSTextField!
     var profiles: [Profile] = []
     var savedSite: String?
@@ -281,8 +295,18 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
-        migrateFromFinicky()
         let args = CommandLine.arguments
+        if args.contains("--self-test") {
+            let s = ["google.com": "A", "meet.google.com": "B", "meet.google.com/abc-defg-hij": "C", "docs.google.com/document/d/X": "D"]
+            precondition(savedMatch("https://meet.google.com/abc-defg-hij?authuser=1", in: s)! == ("meet.google.com/abc-defg-hij", "C"))
+            precondition(savedMatch("https://meet.google.com/zzz-zzzz-zzz", in: s)! == ("meet.google.com", "B"))
+            precondition(savedMatch("https://www.docs.google.com/document/d/X/edit#h", in: s)! == ("docs.google.com/document/d/X", "D"))
+            precondition(savedMatch("https://docs.google.com/document/d/XY", in: s)! == ("google.com", "A"))
+            precondition(savedMatch("https://example.com/a", in: s) == nil)
+            print("self-test ok")
+            exit(0)
+        }
+        migrateFromFinicky()
         if let i = args.firstIndex(of: "--preview"), i + 1 < args.count {
             let u = args.firstIndex(of: "--url").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
             show(url: u ?? "https://example.com/some/page", preview: args[i + 1])
@@ -320,10 +344,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let sites = loadSites()
         let all = loadProfiles()
         for u in urls {
-            if !forcePicker, let host = u.host.map(siteName), let m = savedMatch(host, in: sites),
+            if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
                 NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-            } else if !forcePicker, let host = u.host.map(siteName), let m = savedMatch(host, in: sites),
+            } else if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
                 openInBrowser(u.absoluteString, p)
             } else {
@@ -362,9 +386,18 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         row.addArrangedSubview(card(Profile(dir: privateDir, name: "Private", color: .black, avatar: nil), index: profiles.count))
 
-        remember = NSButton(checkboxWithTitle: "Always open \(host) this way", target: nil, action: nil)
+        remember = NSButton(checkboxWithTitle: "Always open", target: nil, action: nil)
         remember.state = preview != nil && CommandLine.arguments.contains("--ticked") ? .on : .off
         remember.font = .systemFont(ofSize: 12)
+        rememberPop = NSPopUpButton()
+        rememberPop.controlSize = .small
+        rememberPop.font = .systemFont(ofSize: 12)
+        rememberPop.addItems(withTitles: linkLevels(url))
+        if preview != nil, CommandLine.arguments.contains("--exact") { rememberPop.selectItem(at: rememberPop.numberOfItems - 1) }
+        let tail = NSTextField(labelWithString: "this way")
+        tail.font = .systemFont(ofSize: 12)
+        let rememberRow = NSStackView(views: [remember, rememberPop, tail])
+        rememberRow.spacing = 4
         var views: [NSView] = [title, sub, row]
         others = otherBrowsers()
         if !others.isEmpty {
@@ -384,7 +417,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             views.append(otherRow)
         }
-        views.append(remember)
+        views.append(rememberRow)
         if let latest = UserDefaults.standard.string(forKey: "latestVersion"), isNewer(latest, than: currentVersion) {
             let b = NSButton(title: "Profiley \(latest) is out · Get it", target: self, action: #selector(getUpdate))
             b.bezelStyle = .inline
@@ -394,7 +427,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             views.append(b)
         }
         savedSite = nil
-        if let m = savedMatch(host, in: loadSites()) {
+        if let m = savedMatch(url, in: loadSites()) {
             savedSite = m.site
             savedLabel = NSTextField(labelWithString: "Saved: \(m.site) always opens in \(savedTitle(m.profile))")
             savedLabel.font = .systemFont(ofSize: 12)
@@ -552,7 +585,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let app = others[sender.tag]
         if remember.state == .on && !host.isEmpty, let id = Bundle(url: app)?.bundleIdentifier {
             var sites = loadSites()
-            sites[host] = "app:" + id
+            sites[rememberPop.titleOfSelectedItem ?? host] = "app:" + id
             saveSites(sites)
             reloadManager()
         }
@@ -630,7 +663,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         rows.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
         let note = NSTextField(wrappingLabelWithString: saved.isEmpty
             ? "No saved sites yet. Tick \"Always open this site this way\" in the popup, or add one below."
-            : "These sites, and their subdomains, open straight in the profile or browser shown.")
+            : "These sites (and their subdomains) and links (and everything under them) open straight in the profile or browser shown. The longest match wins.")
         note.font = .systemFont(ofSize: 12)
         note.textColor = .secondaryLabelColor
         note.preferredMaxLayoutWidth = 440
@@ -641,7 +674,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let id = NSUserInterfaceItemIdentifier(site)
             let label = NSTextField(labelWithString: site)
             label.font = .systemFont(ofSize: 13)
-            label.lineBreakMode = .byTruncatingTail
+            label.lineBreakMode = .byTruncatingMiddle
+            label.toolTip = site
             label.widthAnchor.constraint(equalToConstant: 200).isActive = true
             let pop = choiceMenu(selecting: profile)
             pop.identifier = id
@@ -656,7 +690,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let field = NSTextField(string: addField?.stringValue ?? "")
-        field.placeholderString = "Add a site, e.g. example.com"
+        field.placeholderString = "Site or link, e.g. example.com"
         field.font = .systemFont(ofSize: 13)
         field.widthAnchor.constraint(equalToConstant: 200).isActive = true
         field.target = self
@@ -713,7 +747,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func addSite() {
         guard let field = addField, let profile = addPop?.selectedItem?.representedObject as? String else { return }
-        let site = siteName(field.stringValue)
+        let typed = field.stringValue.trimmingCharacters(in: .whitespaces)
+        let site = typed.contains("/") ? linkLevels(typed.contains("://") ? typed : "https://" + typed).last ?? "" : siteName(typed)
         guard site.contains("."), !site.contains(" ") else { NSSound.beep(); return }
         var sites = loadSites()
         sites[site] = profile
@@ -886,7 +921,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let p = profiles[i], link = url
         if remember.state == .on && !host.isEmpty {
             var sites = loadSites()
-            sites[host] = p.name
+            sites[rememberPop.titleOfSelectedItem ?? host] = p.name
             saveSites(sites)
             reloadManager()
         }
