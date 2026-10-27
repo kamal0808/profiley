@@ -296,6 +296,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     var setupBrowser = browser
     var statusItem: NSStatusItem?
     let countItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    let updateItem = NSMenuItem(title: "", action: #selector(getUpdate), keyEquivalent: "")
+    let feedbackItem = NSMenuItem(title: "Send feedback…", action: #selector(sendFeedback), keyEquivalent: "")
 
     func applicationWillFinishLaunching(_ n: Notification) {
         let e = NSAppleEventManager.shared().currentAppleEvent
@@ -577,8 +579,13 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
 
     // Incognito in the main browser; never saved as a site's choice.
     // Opens the download page in the user's own browser (not through Profiley, which would ask again).
-    @objc func getUpdate() {
-        guard let page = URL(string: "https://profiley.topc.social/install"),
+    @objc func getUpdate() { openInMainBrowser("https://profiley.topc.social/install") }
+
+    // The menu bar's feedback item: same route as the update link.
+    @objc func sendFeedback() { openInMainBrowser(feedbackURL) }
+
+    func openInMainBrowser(_ link: String) {
+        guard let page = URL(string: link),
               let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleId) else { return }
         next()
         NSWorkspace.shared.open([page], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
@@ -649,7 +656,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let menu = NSMenu()
         menu.delegate = self
         menu.addItem(countItem)
+        menu.addItem(updateItem)
         menu.addItem(.separator())
+        menu.addItem(feedbackItem)
         menu.addItem(withTitle: "Saved sites…", action: #selector(openManager), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Hide menu bar icon", action: #selector(hideStatusItem), keyEquivalent: "").target = self
         menu.addItem(.separator())
@@ -658,7 +667,14 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         statusItem = s
     }
 
-    func menuWillOpen(_ menu: NSMenu) { countItem.title = "\(linksOpened()) opened" }
+    func menuWillOpen(_ menu: NSMenu) {
+        countItem.title = "\(linksOpened()) opened"
+        let latest = UserDefaults.standard.string(forKey: "latestVersion") ?? ""
+        updateItem.isHidden = !isNewer(latest, than: currentVersion)
+        updateItem.title = "Profiley \(latest) is out · Get it"
+        updateItem.target = self
+        feedbackItem.target = self
+    }
 
     @objc func hideStatusItem() {
         UserDefaults.standard.set(true, forKey: "hideMenuBarIcon")
