@@ -1,5 +1,5 @@
 // The default browser. A link to a saved site opens straight in its profile;
-// any other link (or any link while Option is held) shows a popup to pick one.
+// any other link (or any link while Shift or Option is held) shows a popup to pick one.
 import AppKit
 import ServiceManagement
 
@@ -407,7 +407,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         lastURLAt = Date()
         ping()
         checkForUpdate()
-        let forcePicker = NSEvent.modifierFlags.contains(.option)
+        let forcePicker = !NSEvent.modifierFlags.isDisjoint(with: [.shift, .option])
         let sites = loadSites()
         let all = loadProfiles()
         for u in urls {

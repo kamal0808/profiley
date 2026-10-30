@@ -25,7 +25,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>Profiley</string>
   <key>CFBundleExecutable</key><string>Profiley</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.10</string>
+  <key>CFBundleShortVersionString</key><string>1.11</string>
   <key>LSUIElement</key><true/>
   <key>NSAppleEventsUsageDescription</key><string>Profiley switches to a tab you already have open, for sites where you ticked Reuse open tab.</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>

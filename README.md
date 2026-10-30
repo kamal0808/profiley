@@ -6,7 +6,7 @@ On a Mac, links from Slack, WhatsApp, Claude and other apps open in whichever br
 
 - A link from another app shows your profiles, with the same avatars as your browser. Click one or press 1, 2, 3.
 - Tick "Always open this site this way" and that site skips the popup from then on. A saved site covers its subdomains too, so `example.com` also catches `app.example.com`. Leave it unticked for sites you use in several profiles, like github.com.
-- Hold Option while clicking a link to get the popup anyway, to pick a different profile or press Forget on a saved site.
+- Hold Shift (or Option) while clicking a link to get the popup anyway, to pick a different profile or press Forget on a saved site.
 - Open Profiley from Spotlight (or press "Saved sites…" in the popup) to see every saved site, change which profile it opens in, remove it, or add one by hand.
 
 Works with Comet, Google Chrome, Brave, Microsoft Edge and Vivaldi.
