@@ -170,6 +170,52 @@ func savedMatch(_ url: String, in sites: [String: String]) -> (site: String, pro
     return nil
 }
 
+// Two links count as the same open tab when they differ only by #anchor or a trailing slash.
+func tabKey(_ url: String) -> String {
+    var s = url.components(separatedBy: "#")[0]
+    while s.hasSuffix("/") { s.removeLast() }
+    return s
+}
+
+func sameSite(_ a: String, _ b: String) -> Bool {
+    guard let u = URL(string: a), let t = URL(string: b) else { return false }
+    return u.scheme == t.scheme && u.host == t.host && u.port == t.port
+}
+
+// For sites ticked "Reuse open tab": focus a tab already showing this link, else load it in an open tab
+// on the same site (scheme, host and port), in any window of the running browser.
+func focusOpenTab(_ url: String) -> Bool {
+    guard NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleId).first != nil else { return false }
+    let app = "tell application \"\(browser.name)\" to "
+    var err: NSDictionary?
+    guard let ids = NSAppleScript(source: app + "get id of every window")?.executeAndReturnError(&err),
+          let urls = NSAppleScript(source: app + "get URL of tabs of every window")?.executeAndReturnError(&err),
+          ids.numberOfItems == urls.numberOfItems, ids.numberOfItems > 0 else {
+        if let err = err { NSLog("Reuse tab: %@", err) }
+        return false
+    }
+    var other: (id: Int32, tab: Int)?
+    for w in 1...ids.numberOfItems {
+        guard let tabs = urls.atIndex(w), tabs.numberOfItems > 0, let id = ids.atIndex(w)?.int32Value else { continue }
+        for t in 1...tabs.numberOfItems {
+            let open = tabs.atIndex(t)?.stringValue ?? ""
+            if tabKey(open) == tabKey(url) { return focusTab(id, t, load: nil) }
+            if other == nil && sameSite(url, open) { other = (id, t) }
+        }
+    }
+    if let o = other { return focusTab(o.id, o.tab, load: url) }
+    return false
+}
+
+func focusTab(_ id: Int32, _ tab: Int, load url: String?) -> Bool {
+    let load = url.map { "set URL of tab \(tab) of window id \(id) to \"\($0.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"\n" } ?? ""
+    var err: NSDictionary?
+    let ok = NSAppleScript(source: "tell application \"\(browser.name)\"\n\(load)set active tab index of window id \(id) to \(tab)\nset index of window id \(id) to 1\nend tell")?
+        .executeAndReturnError(&err) != nil
+    if let err = err { NSLog("Reuse tab: %@", err) }
+    return ok
+}
+
 func isDefaultBrowser() -> Bool {
     NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)?.standardizedFileURL
         == Bundle.main.bundleURL.standardizedFileURL
@@ -314,10 +360,19 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             precondition(savedMatch("https://www.docs.google.com/document/d/X/edit#h", in: s)! == ("docs.google.com/document/d/X", "D"))
             precondition(savedMatch("https://docs.google.com/document/d/XY", in: s)! == ("google.com", "A"))
             precondition(savedMatch("https://example.com/a", in: s) == nil)
+            precondition(tabKey("http://localhost:3003/projects/x/#tasks") == tabKey("http://localhost:3003/projects/x"))
+            precondition(tabKey("https://a.com/?q=1") != tabKey("https://a.com/?q=2"))
+            precondition(savedMatch("http://localhost:3003/projects/x", in: ["localhost": "K"])! == ("localhost", "K"))
+            precondition(sameSite("http://localhost:3003/projects/x", "http://localhost:3003/feed"))
+            precondition(!sameSite("http://localhost:3003/", "http://localhost:4311/feed"))
             print("self-test ok")
             exit(0)
         }
         migrateFromFinicky()
+        if let i = args.firstIndex(of: "--reuse-test"), i + 2 < args.count {
+            try? "\(focusOpenTab(args[i + 1]))".write(toFile: args[i + 2], atomically: true, encoding: .utf8)
+            exit(0)
+        }
         if let i = args.firstIndex(of: "--preview"), i + 1 < args.count {
             let u = args.firstIndex(of: "--url").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
             show(url: u ?? "https://example.com/some/page", preview: args[i + 1])
@@ -362,7 +417,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                 countOpen()
             } else if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
-                openInBrowser(u.absoluteString, p)
+                if (UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? []).contains(m.site) && focusOpenTab(u.absoluteString) {
+                    countOpen()
+                    bringBrowserForward()
+                } else {
+                    openInBrowser(u.absoluteString, p)
+                }
             } else {
                 pending.append(u.absoluteString)
             }
@@ -690,7 +750,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     // A window listing saved sites: change the profile each one opens in, or remove it.
     func showManager(preview: String?) {
         if profiles.isEmpty { profiles = loadProfiles() }
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 380),
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 380),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "Profiley — Saved sites"
         w.isReleasedWhenClosed = false
@@ -719,6 +779,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     func reloadManager() {
         guard let w = manager else { return }
         let saved = loadSites().sorted { $0.key < $1.key }
+        let reuse = Set(UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? [])
 
         let rows = NSStackView()
         rows.orientation = .vertical
@@ -733,7 +794,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             : "These sites (and their subdomains) and links (and everything under them) open straight in the profile or browser shown. The longest match wins.")
         note.font = .systemFont(ofSize: 12)
         note.textColor = .secondaryLabelColor
-        note.preferredMaxLayoutWidth = 440
+        note.preferredMaxLayoutWidth = 560
         rows.addArrangedSubview(note)
         rows.setCustomSpacing(14, after: note)
 
@@ -751,7 +812,11 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             let remove = NSButton(title: "Remove", target: self, action: #selector(removeSaved(_:)))
             remove.bezelStyle = .rounded
             remove.identifier = id
-            let row = NSStackView(views: [label, pop, remove])
+            let tab = NSButton(checkboxWithTitle: "Reuse open tab", target: self, action: #selector(toggleReuseTab(_:)))
+            tab.identifier = id
+            tab.state = reuse.contains(site) ? .on : .off
+            tab.toolTip = "If this site is already open in a tab, jump to it instead of opening another"
+            let row = NSStackView(views: [label, pop, tab, remove])
             row.spacing = 10
             rows.addArrangedSubview(row)
         }
@@ -781,7 +846,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             let note = NSTextField(wrappingLabelWithString: "Profiley isn't your default browser yet, so links from other apps won't come here.")
             note.font = .systemFont(ofSize: 12)
             note.textColor = .secondaryLabelColor
-            note.preferredMaxLayoutWidth = 440
+            note.preferredMaxLayoutWidth = 560
             let make = NSButton(title: "Make default browser", target: self, action: #selector(makeDefaultPressed))
             make.bezelStyle = .rounded
             rows.setCustomSpacing(20, after: showIcon)
@@ -799,7 +864,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             rows.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
         ])
         w.contentView = content
-        w.setContentSize(NSSize(width: 480, height: max(160, rows.fittingSize.height)))
+        w.setContentSize(NSSize(width: 600, height: max(160, rows.fittingSize.height)))
     }
 
     @objc func changeSaved(_ sender: NSPopUpButton) {
@@ -807,6 +872,13 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         var sites = loadSites()
         sites[site] = profile
         saveSites(sites)
+    }
+
+    @objc func toggleReuseTab(_ sender: NSButton) {
+        guard let site = sender.identifier?.rawValue else { return }
+        var sites = Set(UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? [])
+        if sender.state == .on { sites.insert(site) } else { sites.remove(site) }
+        UserDefaults.standard.set(sites.sorted(), forKey: "reuseTabSites")
     }
 
     @objc func removeSaved(_ sender: NSButton) {
@@ -821,7 +893,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         guard let field = addField, let profile = addPop?.selectedItem?.representedObject as? String else { return }
         let typed = field.stringValue.trimmingCharacters(in: .whitespaces)
         let site = typed.contains("/") ? linkLevels(typed.contains("://") ? typed : "https://" + typed).last ?? "" : siteName(typed)
-        guard site.contains("."), !site.contains(" ") else { NSSound.beep(); return }
+        guard site.contains(".") || site.hasPrefix("localhost"), !site.contains(" ") else { NSSound.beep(); return }
         var sites = loadSites()
         sites[site] = profile
         saveSites(sites)
