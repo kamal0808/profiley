@@ -27,6 +27,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.9</string>
   <key>LSUIElement</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>Profiley switches to a tab you already have open, for sites where you ticked Reuse open tab.</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>CFBundleURLTypes</key><array><dict>
     <key>CFBundleURLName</key><string>Web site URL</string>

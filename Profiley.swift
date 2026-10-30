@@ -170,6 +170,36 @@ func savedMatch(_ url: String, in sites: [String: String]) -> (site: String, pro
     return nil
 }
 
+// Two links count as the same open tab when they differ only by #anchor or a trailing slash.
+func tabKey(_ url: String) -> String {
+    var s = url.components(separatedBy: "#")[0]
+    while s.hasSuffix("/") { s.removeLast() }
+    return s
+}
+
+// For sites ticked "Reuse open tab": focus a tab already showing this link, in any window of the running browser.
+func focusOpenTab(_ url: String) -> Bool {
+    guard NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleId).first != nil else { return false }
+    let app = "tell application \"\(browser.name)\" to "
+    var err: NSDictionary?
+    guard let ids = NSAppleScript(source: app + "get id of every window")?.executeAndReturnError(&err),
+          let urls = NSAppleScript(source: app + "get URL of tabs of every window")?.executeAndReturnError(&err),
+          ids.numberOfItems == urls.numberOfItems, ids.numberOfItems > 0 else {
+        if let err = err { NSLog("Reuse tab: %@", err) }
+        return false
+    }
+    let want = tabKey(url)
+    for w in 1...ids.numberOfItems {
+        guard let tabs = urls.atIndex(w), tabs.numberOfItems > 0 else { continue }
+        for t in 1...tabs.numberOfItems where tabKey(tabs.atIndex(t)?.stringValue ?? "") == want {
+            let id = ids.atIndex(w)!.int32Value
+            return NSAppleScript(source: "tell application \"\(browser.name)\"\nset active tab index of window id \(id) to \(t)\nset index of window id \(id) to 1\nend tell")?
+                .executeAndReturnError(&err) != nil
+        }
+    }
+    return false
+}
+
 func isDefaultBrowser() -> Bool {
     NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)?.standardizedFileURL
         == Bundle.main.bundleURL.standardizedFileURL
@@ -312,6 +342,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             precondition(savedMatch("https://www.docs.google.com/document/d/X/edit#h", in: s)! == ("docs.google.com/document/d/X", "D"))
             precondition(savedMatch("https://docs.google.com/document/d/XY", in: s)! == ("google.com", "A"))
             precondition(savedMatch("https://example.com/a", in: s) == nil)
+            precondition(tabKey("http://localhost:3003/projects/x/#tasks") == tabKey("http://localhost:3003/projects/x"))
+            precondition(tabKey("https://a.com/?q=1") != tabKey("https://a.com/?q=2"))
+            precondition(savedMatch("http://localhost:3003/projects/x", in: ["localhost": "K"])! == ("localhost", "K"))
             print("self-test ok")
             exit(0)
         }
@@ -360,7 +393,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                 countOpen()
             } else if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
-                openInBrowser(u.absoluteString, p)
+                if (UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? []).contains(m.site) && focusOpenTab(u.absoluteString) {
+                    countOpen()
+                    bringBrowserForward()
+                } else {
+                    openInBrowser(u.absoluteString, p)
+                }
             } else {
                 pending.append(u.absoluteString)
             }
@@ -702,10 +740,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
 
     func reloadManager() {
         guard let w = manager else { return }
-        // shortcut: --mock shows made-up sites for the UI preview; drop once reuse-tab is built
-        let mock = CommandLine.arguments.contains("--mock")
-        let saved = (mock ? ["localhost:3003": "Kamal", "github.com": "Kamal", "docs.google.com": "Link", "app.clickup.com": "Peoplewiz"] : loadSites()).sorted { $0.key < $1.key }
-        let reuse = Set(mock ? ["localhost:3003", "github.com"] : UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? [])
+        let saved = loadSites().sorted { $0.key < $1.key }
+        let reuse = Set(UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? [])
 
         let rows = NSStackView()
         rows.orientation = .vertical
@@ -819,7 +855,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         guard let field = addField, let profile = addPop?.selectedItem?.representedObject as? String else { return }
         let typed = field.stringValue.trimmingCharacters(in: .whitespaces)
         let site = typed.contains("/") ? linkLevels(typed.contains("://") ? typed : "https://" + typed).last ?? "" : siteName(typed)
-        guard site.contains("."), !site.contains(" ") else { NSSound.beep(); return }
+        guard site.contains(".") || site.hasPrefix("localhost"), !site.contains(" ") else { NSSound.beep(); return }
         var sites = loadSites()
         sites[site] = profile
         saveSites(sites)
