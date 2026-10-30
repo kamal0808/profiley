@@ -65,6 +65,13 @@ func saveSites(_ sites: [String: String]) {
     }
 }
 
+// Links Profiley has opened, kept on this Mac only.
+func countOpen() { UserDefaults.standard.set(UserDefaults.standard.integer(forKey: "linksOpened") + 1, forKey: "linksOpened") }
+func linksOpened() -> String {
+    let n = UserDefaults.standard.integer(forKey: "linksOpened")
+    return "\(n.formatted()) link\(n == 1 ? "" : "s")"
+}
+
 // Anonymous usage count on PostHog: "app_install" once, then "app_active" at most once a day,
 // with a random ID and the app version, no person profile.
 // Off: `defaults write com.kamalkhatwani.profiley analytics -bool false`.
@@ -268,7 +275,7 @@ final class ProfileButton: NSButton {
     override func mouseExited(with event: NSEvent) { onHover?(false) }
 }
 
-final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
     var panel: NSPanel?
     var url = ""
     var host = ""
@@ -287,6 +294,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var addPop: NSPopUpButton?
     var setup: NSWindow?
     var setupBrowser = browser
+    var statusItem: NSStatusItem?
+    let countItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
     func applicationWillFinishLaunching(_ n: Notification) {
         let e = NSAppleEventManager.shared().currentAppleEvent
@@ -325,6 +334,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         startAtLogin()
+        updateStatusItem()
         // Opened by hand rather than by a link: show the saved sites.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard !self.gotURL && self.panel == nil && !self.launchedAtLogin else { return }
@@ -347,6 +357,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
                 NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                countOpen()
             } else if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
                 openInBrowser(u.absoluteString, p)
@@ -577,6 +588,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let link = url
         next()
         launchBrowser(["--incognito", link])
+        countOpen()
         bringBrowserForward()
     }
 
@@ -590,6 +602,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             reloadManager()
         }
         NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        countOpen()
         next()
     }
 
@@ -621,6 +634,41 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel?.orderOut(nil)
         panel = nil
         showManager(preview: nil)
+    }
+
+    // The menu bar icon: the link count, Saved sites and Quit, since the app has no Dock icon or menu of its own.
+    func updateStatusItem() {
+        if UserDefaults.standard.bool(forKey: "hideMenuBarIcon") {
+            if let s = statusItem { NSStatusBar.system.removeStatusItem(s) }
+            statusItem = nil
+            return
+        }
+        guard statusItem == nil else { return }
+        let s = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        s.button?.image = NSImage(systemSymbolName: "person.2.circle", accessibilityDescription: "Profiley")
+        let menu = NSMenu()
+        menu.delegate = self
+        menu.addItem(countItem)
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Saved sites…", action: #selector(openManager), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Hide menu bar icon", action: #selector(hideStatusItem), keyEquivalent: "").target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Quit Profiley", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        s.menu = menu
+        statusItem = s
+    }
+
+    func menuWillOpen(_ menu: NSMenu) { countItem.title = "\(linksOpened()) opened" }
+
+    @objc func hideStatusItem() {
+        UserDefaults.standard.set(true, forKey: "hideMenuBarIcon")
+        updateStatusItem()
+        reloadManager()
+    }
+
+    @objc func toggleStatusItem(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .off, forKey: "hideMenuBarIcon")
+        updateStatusItem()
     }
 
     // A window listing saved sites: change the profile each one opens in, or remove it.
@@ -661,6 +709,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         rows.alignment = .leading
         rows.spacing = 8
         rows.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 18, right: 20)
+        let count = NSTextField(labelWithString: "Profiley has opened \(linksOpened()) for you")
+        count.font = .systemFont(ofSize: 13, weight: .semibold)
+        rows.addArrangedSubview(count)
         let note = NSTextField(wrappingLabelWithString: saved.isEmpty
             ? "No saved sites yet. Tick \"Always open this site this way\" in the popup, or add one below."
             : "These sites (and their subdomains) and links (and everything under them) open straight in the profile or browser shown. The longest match wins.")
@@ -705,6 +756,11 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let last = rows.arrangedSubviews.last { rows.setCustomSpacing(16, after: last) }
         rows.addArrangedSubview(addRow)
 
+        let showIcon = NSButton(checkboxWithTitle: "Show Profiley in the menu bar", target: self, action: #selector(toggleStatusItem(_:)))
+        showIcon.state = UserDefaults.standard.bool(forKey: "hideMenuBarIcon") ? .off : .on
+        rows.setCustomSpacing(20, after: addRow)
+        rows.addArrangedSubview(showIcon)
+
         if !isDefaultBrowser() {
             let note = NSTextField(wrappingLabelWithString: "Profiley isn't your default browser yet, so links from other apps won't come here.")
             note.font = .systemFont(ofSize: 12)
@@ -712,7 +768,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
             note.preferredMaxLayoutWidth = 440
             let make = NSButton(title: "Make default browser", target: self, action: #selector(makeDefaultPressed))
             make.bezelStyle = .rounded
-            rows.setCustomSpacing(20, after: addRow)
+            rows.setCustomSpacing(20, after: showIcon)
             rows.addArrangedSubview(note)
             rows.addArrangedSubview(make)
         }
@@ -932,6 +988,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func openInBrowser(_ url: String, _ p: Profile) {
         NSLog("Opening %@ in %@ profile %@", url, browser.name, p.name)
         launchBrowser(["--profile-directory=\(p.dir)", url])
+        countOpen()
         bringBrowserForward()
     }
 
