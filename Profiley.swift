@@ -177,15 +177,13 @@ func tabKey(_ url: String) -> String {
     return s
 }
 
-// A front-page link ("http://localhost:3003") matches any tab on that site, since front pages often redirect (to /feed, /login…).
-func sameTab(_ link: String, _ tab: String) -> Bool {
-    if let u = URL(string: link), u.path.isEmpty || u.path == "/", u.query == nil, let t = URL(string: tab) {
-        return u.scheme == t.scheme && u.host == t.host && u.port == t.port
-    }
-    return tabKey(link) == tabKey(tab)
+func sameSite(_ a: String, _ b: String) -> Bool {
+    guard let u = URL(string: a), let t = URL(string: b) else { return false }
+    return u.scheme == t.scheme && u.host == t.host && u.port == t.port
 }
 
-// For sites ticked "Reuse open tab": focus a tab already showing this link, in any window of the running browser.
+// For sites ticked "Reuse open tab": focus a tab already showing this link, else load it in an open tab
+// on the same site (scheme, host and port), in any window of the running browser.
 func focusOpenTab(_ url: String) -> Bool {
     guard NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleId).first != nil else { return false }
     let app = "tell application \"\(browser.name)\" to "
@@ -196,15 +194,26 @@ func focusOpenTab(_ url: String) -> Bool {
         if let err = err { NSLog("Reuse tab: %@", err) }
         return false
     }
+    var other: (id: Int32, tab: Int)?
     for w in 1...ids.numberOfItems {
-        guard let tabs = urls.atIndex(w), tabs.numberOfItems > 0 else { continue }
-        for t in 1...tabs.numberOfItems where sameTab(url, tabs.atIndex(t)?.stringValue ?? "") {
-            let id = ids.atIndex(w)!.int32Value
-            return NSAppleScript(source: "tell application \"\(browser.name)\"\nset active tab index of window id \(id) to \(t)\nset index of window id \(id) to 1\nend tell")?
-                .executeAndReturnError(&err) != nil
+        guard let tabs = urls.atIndex(w), tabs.numberOfItems > 0, let id = ids.atIndex(w)?.int32Value else { continue }
+        for t in 1...tabs.numberOfItems {
+            let open = tabs.atIndex(t)?.stringValue ?? ""
+            if tabKey(open) == tabKey(url) { return focusTab(id, t, load: nil) }
+            if other == nil && sameSite(url, open) { other = (id, t) }
         }
     }
+    if let o = other { return focusTab(o.id, o.tab, load: url) }
     return false
+}
+
+func focusTab(_ id: Int32, _ tab: Int, load url: String?) -> Bool {
+    let load = url.map { "set URL of tab \(tab) of window id \(id) to \"\($0.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"\n" } ?? ""
+    var err: NSDictionary?
+    let ok = NSAppleScript(source: "tell application \"\(browser.name)\"\n\(load)set active tab index of window id \(id) to \(tab)\nset index of window id \(id) to 1\nend tell")?
+        .executeAndReturnError(&err) != nil
+    if let err = err { NSLog("Reuse tab: %@", err) }
+    return ok
 }
 
 func isDefaultBrowser() -> Bool {
@@ -352,13 +361,16 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             precondition(tabKey("http://localhost:3003/projects/x/#tasks") == tabKey("http://localhost:3003/projects/x"))
             precondition(tabKey("https://a.com/?q=1") != tabKey("https://a.com/?q=2"))
             precondition(savedMatch("http://localhost:3003/projects/x", in: ["localhost": "K"])! == ("localhost", "K"))
-            precondition(sameTab("http://localhost:3003", "http://localhost:3003/feed"))
-            precondition(!sameTab("http://localhost:3003", "http://localhost:4311/feed"))
-            precondition(!sameTab("http://localhost:3003/projects/x", "http://localhost:3003/feed"))
+            precondition(sameSite("http://localhost:3003/projects/x", "http://localhost:3003/feed"))
+            precondition(!sameSite("http://localhost:3003/", "http://localhost:4311/feed"))
             print("self-test ok")
             exit(0)
         }
         migrateFromFinicky()
+        if let i = args.firstIndex(of: "--reuse-test"), i + 2 < args.count {
+            try? "\(focusOpenTab(args[i + 1]))".write(toFile: args[i + 2], atomically: true, encoding: .utf8)
+            exit(0)
+        }
         if let i = args.firstIndex(of: "--preview"), i + 1 < args.count {
             let u = args.firstIndex(of: "--url").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
             show(url: u ?? "https://example.com/some/page", preview: args[i + 1])
