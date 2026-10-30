@@ -674,7 +674,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     // A window listing saved sites: change the profile each one opens in, or remove it.
     func showManager(preview: String?) {
         if profiles.isEmpty { profiles = loadProfiles() }
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 380),
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 380),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "Profiley — Saved sites"
         w.isReleasedWhenClosed = false
@@ -702,7 +702,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
 
     func reloadManager() {
         guard let w = manager else { return }
-        let saved = loadSites().sorted { $0.key < $1.key }
+        // shortcut: --mock shows made-up sites for the UI preview; drop once reuse-tab is built
+        let mock = CommandLine.arguments.contains("--mock")
+        let saved = (mock ? ["localhost:3003": "Kamal", "github.com": "Kamal", "docs.google.com": "Link", "app.clickup.com": "Peoplewiz"] : loadSites()).sorted { $0.key < $1.key }
+        let reuse = Set(mock ? ["localhost:3003", "github.com"] : UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? [])
 
         let rows = NSStackView()
         rows.orientation = .vertical
@@ -717,7 +720,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             : "These sites (and their subdomains) and links (and everything under them) open straight in the profile or browser shown. The longest match wins.")
         note.font = .systemFont(ofSize: 12)
         note.textColor = .secondaryLabelColor
-        note.preferredMaxLayoutWidth = 440
+        note.preferredMaxLayoutWidth = 560
         rows.addArrangedSubview(note)
         rows.setCustomSpacing(14, after: note)
 
@@ -735,7 +738,11 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             let remove = NSButton(title: "Remove", target: self, action: #selector(removeSaved(_:)))
             remove.bezelStyle = .rounded
             remove.identifier = id
-            let row = NSStackView(views: [label, pop, remove])
+            let tab = NSButton(checkboxWithTitle: "Reuse open tab", target: self, action: #selector(toggleReuseTab(_:)))
+            tab.identifier = id
+            tab.state = reuse.contains(site) ? .on : .off
+            tab.toolTip = "If this site is already open in a tab, jump to it instead of opening another"
+            let row = NSStackView(views: [label, pop, tab, remove])
             row.spacing = 10
             rows.addArrangedSubview(row)
         }
@@ -765,7 +772,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             let note = NSTextField(wrappingLabelWithString: "Profiley isn't your default browser yet, so links from other apps won't come here.")
             note.font = .systemFont(ofSize: 12)
             note.textColor = .secondaryLabelColor
-            note.preferredMaxLayoutWidth = 440
+            note.preferredMaxLayoutWidth = 560
             let make = NSButton(title: "Make default browser", target: self, action: #selector(makeDefaultPressed))
             make.bezelStyle = .rounded
             rows.setCustomSpacing(20, after: showIcon)
@@ -783,7 +790,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             rows.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
         ])
         w.contentView = content
-        w.setContentSize(NSSize(width: 480, height: max(160, rows.fittingSize.height)))
+        w.setContentSize(NSSize(width: 600, height: max(160, rows.fittingSize.height)))
     }
 
     @objc func changeSaved(_ sender: NSPopUpButton) {
@@ -791,6 +798,13 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         var sites = loadSites()
         sites[site] = profile
         saveSites(sites)
+    }
+
+    @objc func toggleReuseTab(_ sender: NSButton) {
+        guard let site = sender.identifier?.rawValue else { return }
+        var sites = Set(UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? [])
+        if sender.state == .on { sites.insert(site) } else { sites.remove(site) }
+        UserDefaults.standard.set(sites.sorted(), forKey: "reuseTabSites")
     }
 
     @objc func removeSaved(_ sender: NSButton) {
