@@ -158,6 +158,12 @@ func linkLevels(_ url: String) -> [String] {
 }
 
 // The saved rule covering this link: its longest saved path level, else its host or closest parent domain.
+func outerApp(_ path: String) -> String? {
+    let parts = (path as NSString).pathComponents
+    guard let i = parts.firstIndex(where: { $0.hasSuffix(".app") }) else { return nil }
+    return NSString.path(withComponents: Array(parts[...i]))
+}
+
 func savedMatch(_ url: String, in sites: [String: String]) -> (site: String, profile: String)? {
     let levels = linkLevels(url)
     for l in levels.dropFirst().reversed() { if let p = sites[l] { return (l, p) } }
@@ -334,7 +340,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     var launchedAtLogin = false
     var lastURLAt = Date.distantPast
     var others: [URL] = []
-    var pending: [String] = []
+    var pending: [(url: String, from: URL?)] = []
     var manager: NSWindow?
     var addField: NSTextField?
     var addPop: NSPopUpButton?
@@ -360,6 +366,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             precondition(savedMatch("https://www.docs.google.com/document/d/X/edit#h", in: s)! == ("docs.google.com/document/d/X", "D"))
             precondition(savedMatch("https://docs.google.com/document/d/XY", in: s)! == ("google.com", "A"))
             precondition(savedMatch("https://example.com/a", in: s) == nil)
+            precondition(outerApp("/Applications/Slack.app/Contents/Frameworks/Slack Helper.app") == "/Applications/Slack.app")
+            precondition(outerApp("/Applications/Notes.app") == "/Applications/Notes.app")
+            precondition(outerApp("/usr/bin") == nil)
             precondition(tabKey("http://localhost:3003/projects/x/#tasks") == tabKey("http://localhost:3003/projects/x"))
             precondition(tabKey("https://a.com/?q=1") != tabKey("https://a.com/?q=2"))
             precondition(savedMatch("http://localhost:3003/projects/x", in: ["localhost": "K"])! == ("localhost", "K"))
@@ -375,7 +384,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         }
         if let i = args.firstIndex(of: "--preview"), i + 1 < args.count {
             let u = args.firstIndex(of: "--url").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
-            show(url: u ?? "https://example.com/some/page", preview: args[i + 1])
+            let from = args.firstIndex(of: "--from").flatMap { $0 + 1 < args.count ? URL(fileURLWithPath: args[$0 + 1]) : nil }
+            show(url: u ?? "https://example.com/some/page", from: from, preview: args[i + 1])
             return
         }
         if let i = args.firstIndex(of: "--manage-preview"), i + 1 < args.count {
@@ -401,6 +411,13 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         }
     }
 
+    // The app whose Apple Event handed us the link. Helpers (Slack Helper and the like) sit inside their parent's .app, so take the outermost one.
+    func openerApp() -> URL? {
+        guard let pid = NSAppleEventManager.shared().currentAppleEvent?.attributeDescriptor(forKeyword: keySenderPIDAttr)?.int32Value,
+              pid != getpid(), let path = NSRunningApplication(processIdentifier: pid)?.bundleURL?.path else { return nil }
+        return outerApp(path).map { URL(fileURLWithPath: $0) }
+    }
+
     // Links (and .html files) sent to us as the default browser.
     func application(_ app: NSApplication, open urls: [URL]) {
         gotURL = true
@@ -410,6 +427,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let forcePicker = !NSEvent.modifierFlags.isDisjoint(with: [.shift, .option])
         let sites = loadSites()
         let all = loadProfiles()
+        let from = openerApp()
         for u in urls {
             if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
                m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
@@ -424,7 +442,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                     openInBrowser(u.absoluteString, p)
                 }
             } else {
-                pending.append(u.absoluteString)
+                pending.append((u.absoluteString, from))
             }
         }
         if panel == nil { next() }
@@ -434,12 +452,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     func next() {
         panel?.orderOut(nil)
         panel = nil
-        if !pending.isEmpty { show(url: pending.removeFirst(), preview: nil) }
+        if !pending.isEmpty { let n = pending.removeFirst(); show(url: n.url, from: n.from, preview: nil) }
     }
 
     @objc func cancel() { next() }
 
-    func show(url: String, preview: String?) {
+    func show(url: String, from: URL? = nil, preview: String?) {
         self.url = url
         host = URL(string: url)?.host.map(siteName) ?? ""
         profiles = loadProfiles()
@@ -471,7 +489,18 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         tail.font = .systemFont(ofSize: 12)
         let rememberRow = NSStackView(views: [remember, rememberPop, tail])
         rememberRow.spacing = 4
-        var views: [NSView] = [title, sub, row]
+        var views: [NSView] = [title, sub]
+        if let from {
+            let icon = NSImageView(image: NSWorkspace.shared.icon(forFile: from.path))
+            icon.image?.size = NSSize(width: 14, height: 14)
+            let label = NSTextField(labelWithString: "from " + FileManager.default.displayName(atPath: from.path).replacingOccurrences(of: ".app", with: ""))
+            label.font = .systemFont(ofSize: 11)
+            label.textColor = .secondaryLabelColor
+            let fromRow = NSStackView(views: [icon, label])
+            fromRow.spacing = 4
+            views.append(fromRow)
+        }
+        views.append(row)
         others = otherBrowsers()
         if !others.isEmpty {
             let label = NSTextField(labelWithString: "Or open in")
@@ -531,7 +560,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         stack.alignment = .centerX
         stack.spacing = 10
         stack.setCustomSpacing(4, after: title)
-        stack.setCustomSpacing(16, after: sub)
+        stack.setCustomSpacing(16, after: views[views.firstIndex(of: row)! - 1])
         stack.setCustomSpacing(16, after: row)
         stack.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 18, right: 24)
         stack.translatesAutoresizingMaskIntoConstraints = false
