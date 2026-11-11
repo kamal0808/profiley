@@ -157,6 +157,12 @@ func linkLevels(_ url: String) -> [String] {
     return levels
 }
 
+func outerApp(_ path: String) -> String? {
+    let parts = (path as NSString).pathComponents
+    guard let i = parts.firstIndex(where: { $0.hasSuffix(".app") }) else { return nil }
+    return NSString.path(withComponents: Array(parts[...i]))
+}
+
 // The saved rule covering this link: its longest saved path level, else its host or closest parent domain.
 func savedMatch(_ url: String, in sites: [String: String]) -> (site: String, profile: String)? {
     let levels = linkLevels(url)
@@ -168,6 +174,13 @@ func savedMatch(_ url: String, in sites: [String: String]) -> (site: String, pro
         h = String(h[h.index(after: dot)...])
     }
     return nil
+}
+
+// An app's rule is saved next to the sites as "from:<bundle id>". A saved site or link beats it.
+func savedRule(_ url: String, appKey: String?, in sites: [String: String]) -> (site: String, profile: String)? {
+    if let m = savedMatch(url, in: sites) { return m }
+    guard let appKey, let p = sites[appKey] else { return nil }
+    return (appKey, p)
 }
 
 // Two links count as the same open tab when they differ only by #anchor or a trailing slash.
@@ -334,7 +347,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     var launchedAtLogin = false
     var lastURLAt = Date.distantPast
     var others: [URL] = []
-    var pending: [String] = []
+    var pending: [(url: String, from: URL?)] = []
     var manager: NSWindow?
     var addField: NSTextField?
     var addPop: NSPopUpButton?
@@ -360,6 +373,14 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             precondition(savedMatch("https://www.docs.google.com/document/d/X/edit#h", in: s)! == ("docs.google.com/document/d/X", "D"))
             precondition(savedMatch("https://docs.google.com/document/d/XY", in: s)! == ("google.com", "A"))
             precondition(savedMatch("https://example.com/a", in: s) == nil)
+            precondition(outerApp("/Applications/Slack.app/Contents/Frameworks/Slack Helper.app") == "/Applications/Slack.app")
+            precondition(outerApp("/Applications/Notes.app") == "/Applications/Notes.app")
+            precondition(outerApp("/usr/bin") == nil)
+            let r = s.merging(["from:com.x.app": "E"]) { a, _ in a }
+            precondition(savedRule("https://example.com/a", appKey: "from:com.x.app", in: r)! == ("from:com.x.app", "E"))
+            precondition(savedRule("https://docs.google.com/document/d/X", appKey: "from:com.x.app", in: r)! == ("docs.google.com/document/d/X", "D"))
+            precondition(savedRule("https://example.com/a", appKey: "from:com.y.app", in: r) == nil)
+            precondition(savedRule("https://example.com/a", appKey: nil, in: r) == nil)
             precondition(tabKey("http://localhost:3003/projects/x/#tasks") == tabKey("http://localhost:3003/projects/x"))
             precondition(tabKey("https://a.com/?q=1") != tabKey("https://a.com/?q=2"))
             precondition(savedMatch("http://localhost:3003/projects/x", in: ["localhost": "K"])! == ("localhost", "K"))
@@ -375,7 +396,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         }
         if let i = args.firstIndex(of: "--preview"), i + 1 < args.count {
             let u = args.firstIndex(of: "--url").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
-            show(url: u ?? "https://example.com/some/page", preview: args[i + 1])
+            let from = args.firstIndex(of: "--from").flatMap { $0 + 1 < args.count ? URL(fileURLWithPath: args[$0 + 1]) : nil }
+            show(url: u ?? "https://example.com/some/page", from: from, preview: args[i + 1])
             return
         }
         if let i = args.firstIndex(of: "--manage-preview"), i + 1 < args.count {
@@ -401,6 +423,13 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         }
     }
 
+    // The app whose Apple Event handed us the link. Helpers (Slack Helper and the like) sit inside their parent's .app, so take the outermost one.
+    func openerApp() -> URL? {
+        guard let pid = NSAppleEventManager.shared().currentAppleEvent?.attributeDescriptor(forKeyword: keySenderPIDAttr)?.int32Value,
+              pid != getpid(), let path = NSRunningApplication(processIdentifier: pid)?.bundleURL?.path else { return nil }
+        return outerApp(path).map { URL(fileURLWithPath: $0) }
+    }
+
     // Links (and .html files) sent to us as the default browser.
     func application(_ app: NSApplication, open urls: [URL]) {
         gotURL = true
@@ -410,12 +439,14 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let forcePicker = !NSEvent.modifierFlags.isDisjoint(with: [.shift, .option])
         let sites = loadSites()
         let all = loadProfiles()
+        let from = openerApp()
+        let appKey = from.flatMap(appRuleKey)
         for u in urls {
-            if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
+            if !forcePicker, let m = savedRule(u.absoluteString, appKey: appKey, in: sites),
                m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
                 NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
                 countOpen()
-            } else if !forcePicker, let m = savedMatch(u.absoluteString, in: sites),
+            } else if !forcePicker, let m = savedRule(u.absoluteString, appKey: appKey, in: sites),
                let p = all.first(where: { $0.name == m.profile }) {
                 if (UserDefaults.standard.stringArray(forKey: "reuseTabSites") ?? []).contains(m.site) && focusOpenTab(u.absoluteString) {
                     countOpen()
@@ -424,7 +455,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                     openInBrowser(u.absoluteString, p)
                 }
             } else {
-                pending.append(u.absoluteString)
+                pending.append((u.absoluteString, from))
             }
         }
         if panel == nil { next() }
@@ -434,12 +465,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     func next() {
         panel?.orderOut(nil)
         panel = nil
-        if !pending.isEmpty { show(url: pending.removeFirst(), preview: nil) }
+        if !pending.isEmpty { let n = pending.removeFirst(); show(url: n.url, from: n.from, preview: nil) }
     }
 
     @objc func cancel() { next() }
 
-    func show(url: String, preview: String?) {
+    func show(url: String, from: URL? = nil, preview: String?) {
         self.url = url
         host = URL(string: url)?.host.map(siteName) ?? ""
         profiles = loadProfiles()
@@ -466,12 +497,28 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         rememberPop.controlSize = .small
         rememberPop.font = .systemFont(ofSize: 12)
         rememberPop.addItems(withTitles: linkLevels(url))
+        if let key = from.flatMap(appRuleKey) {
+            rememberPop.menu?.addItem(.separator())
+            rememberPop.addItem(withTitle: ruleTitle(key))
+            rememberPop.lastItem?.representedObject = key
+        }
         if preview != nil, CommandLine.arguments.contains("--exact") { rememberPop.selectItem(at: rememberPop.numberOfItems - 1) }
         let tail = NSTextField(labelWithString: "this way")
         tail.font = .systemFont(ofSize: 12)
         let rememberRow = NSStackView(views: [remember, rememberPop, tail])
         rememberRow.spacing = 4
-        var views: [NSView] = [title, sub, row]
+        var views: [NSView] = [title, sub]
+        if let from {
+            let icon = NSImageView(image: NSWorkspace.shared.icon(forFile: from.path))
+            icon.image?.size = NSSize(width: 14, height: 14)
+            let label = NSTextField(labelWithString: "from " + FileManager.default.displayName(atPath: from.path).replacingOccurrences(of: ".app", with: ""))
+            label.font = .systemFont(ofSize: 11)
+            label.textColor = .secondaryLabelColor
+            let fromRow = NSStackView(views: [icon, label])
+            fromRow.spacing = 4
+            views.append(fromRow)
+        }
+        views.append(row)
         others = otherBrowsers()
         if !others.isEmpty {
             let label = NSTextField(labelWithString: "Or open in")
@@ -500,9 +547,9 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             views.append(b)
         }
         savedSite = nil
-        if let m = savedMatch(url, in: loadSites()) {
+        if let m = savedRule(url, appKey: from.flatMap(appRuleKey), in: loadSites()) {
             savedSite = m.site
-            savedLabel = NSTextField(labelWithString: "Saved: \(m.site) always opens in \(savedTitle(m.profile))")
+            savedLabel = NSTextField(labelWithString: "Saved: \(ruleTitle(m.site)) always open\(m.site.hasPrefix("from:") ? "" : "s") in \(savedTitle(m.profile))")
             savedLabel.font = .systemFont(ofSize: 12)
             savedLabel.textColor = .secondaryLabelColor
             let forget = NSButton(title: "Forget", target: self, action: #selector(forgetSaved(_:)))
@@ -531,7 +578,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         stack.alignment = .centerX
         stack.spacing = 10
         stack.setCustomSpacing(4, after: title)
-        stack.setCustomSpacing(16, after: sub)
+        stack.setCustomSpacing(16, after: views[views.firstIndex(of: row)! - 1])
         stack.setCustomSpacing(16, after: row)
         stack.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 18, right: 24)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -622,7 +669,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         var sites = loadSites()
         sites[site] = nil
         saveSites(sites)
-        savedLabel.stringValue = "Forgotten: \(site) will ask again"
+        savedLabel.stringValue = "Forgotten: \(ruleTitle(site)) will ask again"
         sender.isHidden = true
         reloadManager()
     }
@@ -664,7 +711,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let app = others[sender.tag]
         if remember.state == .on && !host.isEmpty, let id = Bundle(url: app)?.bundleIdentifier {
             var sites = loadSites()
-            sites[rememberPop.titleOfSelectedItem ?? host] = "app:" + id
+            sites[rememberKey] = "app:" + id
             saveSites(sites)
             reloadManager()
         }
@@ -680,6 +727,15 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return id }
         return FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
     }
+
+    func appRuleKey(_ app: URL) -> String? { Bundle(url: app)?.bundleIdentifier.map { "from:" + $0 } }
+
+    // "from:com.tinyspeck.slackmacgap" -> "links from Slack"; sites and links show as they are.
+    func ruleTitle(_ site: String) -> String {
+        site.hasPrefix("from:") ? "links from " + savedTitle("app:" + site.dropFirst(5)) : site
+    }
+
+    var rememberKey: String { rememberPop.selectedItem?.representedObject as? String ?? rememberPop.titleOfSelectedItem ?? host }
 
     // Menu of everything a site can open in: this browser's profiles, then the other browsers.
     func choiceMenu(selecting value: String?) -> NSPopUpButton {
@@ -791,7 +847,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         rows.addArrangedSubview(count)
         let note = NSTextField(wrappingLabelWithString: saved.isEmpty
             ? "No saved sites yet. Tick \"Always open this site this way\" in the popup, or add one below."
-            : "These sites (and their subdomains) and links (and everything under them) open straight in the profile or browser shown. The longest match wins.")
+            : "These sites (and their subdomains) and links (and everything under them) open straight in the profile or browser shown. The longest match wins. Links from an app follow its rule only when no site or link matches.")
         note.font = .systemFont(ofSize: 12)
         note.textColor = .secondaryLabelColor
         note.preferredMaxLayoutWidth = 560
@@ -800,10 +856,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
 
         for (site, profile) in saved {
             let id = NSUserInterfaceItemIdentifier(site)
-            let label = NSTextField(labelWithString: site)
+            let label = NSTextField(labelWithString: ruleTitle(site))
             label.font = .systemFont(ofSize: 13)
             label.lineBreakMode = .byTruncatingMiddle
-            label.toolTip = site
+            label.toolTip = ruleTitle(site)
             label.widthAnchor.constraint(equalToConstant: 200).isActive = true
             let pop = choiceMenu(selecting: profile)
             pop.identifier = id
@@ -1065,7 +1121,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let p = profiles[i], link = url
         if remember.state == .on && !host.isEmpty {
             var sites = loadSites()
-            sites[rememberPop.titleOfSelectedItem ?? host] = p.name
+            sites[rememberKey] = p.name
             saveSites(sites)
             reloadManager()
         }
