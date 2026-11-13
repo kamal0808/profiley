@@ -32,6 +32,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleURLTypes</key><array><dict>
     <key>CFBundleURLName</key><string>Web site URL</string>
     <key>CFBundleURLSchemes</key><array><string>http</string><string>https</string></array>
+  </dict><dict>
+    <key>CFBundleURLName</key><string>Profile hint</string>
+    <key>CFBundleURLSchemes</key><array><string>profiley</string></array>
   </dict></array>
   <key>CFBundleDocumentTypes</key><array><dict>
     <key>CFBundleTypeName</key><string>HTML document</string>
