@@ -48,7 +48,7 @@ Open `profiley://open?profile=<name>&url=<link, URL-encoded>` and the link goes 
 open "profiley://open?profile=Work&url=https%3A%2F%2Fexample.com%2Fpage"
 ```
 
-The profile name is the one your browser shows (any case). A saved site still opens in its saved profile, an unknown profile shows the popup, and Shift still forces the popup. Tell your coding agent which projects belong to which profile (say, in `~/.claude/CLAUDE.md`) and it can open every link in the right one.
+The profile name is the one your browser shows (any case), or `private` for a private window. A saved site still opens in its saved profile, an unknown profile shows the popup, and Shift still forces the popup. Tell your coding agent which projects belong to which profile (say, in `~/.claude/CLAUDE.md`) and it can open every link in the right one.
 
 ## Known limits
 

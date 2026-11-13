@@ -468,6 +468,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                 } else {
                     openInBrowser(u.absoluteString, p)
                 }
+            } else if !forcePicker, hint?.caseInsensitiveCompare("private") == .orderedSame {
+                launchBrowser(["--incognito", u.absoluteString])
+                countOpen()
+                bringBrowserForward()
             } else if !forcePicker, let h = hint, let p = all.first(where: { $0.name.caseInsensitiveCompare(h) == .orderedSame }) {
                 openInBrowser(u.absoluteString, p)
             } else {
