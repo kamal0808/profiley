@@ -177,6 +177,15 @@ func savedMatch(_ url: String, in sites: [String: String]) -> (site: String, pro
 }
 
 // An app's rule is saved next to the sites as "from:<bundle id>". A saved site or link beats it.
+// profiley://open?profile=Name&url=… lets an agent say which profile a link belongs to. Plain links pass through with no hint.
+func profileHint(_ u: URL) -> (url: URL, profile: String?)? {
+    guard u.scheme == "profiley" else { return (u, nil) }
+    let q = URLComponents(url: u, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    guard let s = q.first(where: { $0.name == "url" })?.value, let link = URL(string: s),
+          link.scheme == "http" || link.scheme == "https" else { return nil }
+    return (link, q.first(where: { $0.name == "profile" })?.value)
+}
+
 func savedRule(_ url: String, appKey: String?, in sites: [String: String]) -> (site: String, profile: String)? {
     if let m = savedMatch(url, in: sites) { return m }
     guard let appKey, let p = sites[appKey] else { return nil }
@@ -386,6 +395,10 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
             precondition(savedMatch("http://localhost:3003/projects/x", in: ["localhost": "K"])! == ("localhost", "K"))
             precondition(sameSite("http://localhost:3003/projects/x", "http://localhost:3003/feed"))
             precondition(!sameSite("http://localhost:3003/", "http://localhost:4311/feed"))
+            precondition(profileHint(URL(string: "https://a.com/x")!)! == (URL(string: "https://a.com/x")!, nil))
+            precondition(profileHint(URL(string: "profiley://open?profile=Link&url=https%3A%2F%2Fa.com%2Fx%3Fq%3D1")!)! == (URL(string: "https://a.com/x?q=1")!, "Link"))
+            precondition(profileHint(URL(string: "profiley://open?profile=Link")!) == nil)
+            precondition(profileHint(URL(string: "profiley://open?url=file%3A%2F%2F%2Fetc")!) == nil)
             print("self-test ok")
             exit(0)
         }
@@ -441,7 +454,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let all = loadProfiles()
         let from = openerApp()
         let appKey = from.flatMap(appRuleKey)
-        for u in urls {
+        for raw in urls {
+            guard let (u, hint) = profileHint(raw) else { continue }
             if !forcePicker, let m = savedRule(u.absoluteString, appKey: appKey, in: sites),
                m.profile.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(m.profile.dropFirst(4))) {
                 NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
@@ -454,6 +468,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                 } else {
                     openInBrowser(u.absoluteString, p)
                 }
+            } else if !forcePicker, let h = hint, let p = all.first(where: { $0.name.caseInsensitiveCompare(h) == .orderedSame }) {
+                openInBrowser(u.absoluteString, p)
             } else {
                 pending.append((u.absoluteString, from))
             }

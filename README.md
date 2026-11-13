@@ -40,6 +40,16 @@ Saved sites live in `~/Library/Application Support/Profiley/sites.json`.
 
 If you used the older Finicky-based version (Finicky Picker), the first launch copies the sites from the `learned` block of `~/.finicky.js`. Add any other rules by hand in the Saved sites window. Once Profiley is your default browser, quit Finicky and remove it (`brew uninstall --cask finicky`, or drag it to the Trash) and `~/.finicky.js`.
 
+### Opening a link in a profile from a script or an AI agent
+
+Open `profiley://open?profile=<name>&url=<link, URL-encoded>` and the link goes straight to that profile, no popup:
+
+```sh
+open "profiley://open?profile=Work&url=https%3A%2F%2Fexample.com%2Fpage"
+```
+
+The profile name is the one your browser shows (any case). A saved site still opens in its saved profile, an unknown profile shows the popup, and Shift still forces the popup. Tell your coding agent which projects belong to which profile (say, in `~/.claude/CLAUDE.md`) and it can open every link in the right one.
+
 ## Known limits
 
 - One browser at a time.
