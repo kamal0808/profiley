@@ -1,5 +1,6 @@
 // The default browser. A link to a saved site opens straight in its profile;
-// any other link opens in the chosen default, or shows a popup to pick one (always, while Shift or Option is held).
+// any other link shows a popup to pick one, which opens the chosen default by itself after a short countdown
+// (no countdown while Shift or Option is held).
 import AppKit
 import ServiceManagement
 
@@ -356,7 +357,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     var launchedAtLogin = false
     var lastURLAt = Date.distantPast
     var others: [URL] = []
-    var pending: [(url: String, from: URL?)] = []
+    var pending: [(url: String, from: URL?, auto: Bool)] = []
     var manager: NSWindow?
     var addField: NSTextField?
     var addPop: NSPopUpButton?
@@ -475,13 +476,8 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                 bringBrowserForward()
             } else if !forcePicker, let h = hint, let p = all.first(where: { $0.name.caseInsensitiveCompare(h) == .orderedSame }) {
                 openInBrowser(u.absoluteString, p)
-            } else if let d = fallback, d.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(d.dropFirst(4))) {
-                NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-                countOpen()
-            } else if let d = fallback, let p = all.first(where: { $0.name == d }) {
-                openInBrowser(u.absoluteString, p)
             } else {
-                pending.append((u.absoluteString, from))
+                pending.append((u.absoluteString, from, fallback != nil))
             }
         }
         if panel == nil { next() }
@@ -491,12 +487,12 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
     func next() {
         panel?.orderOut(nil)
         panel = nil
-        if !pending.isEmpty { let n = pending.removeFirst(); show(url: n.url, from: n.from, preview: nil) }
+        if !pending.isEmpty { let n = pending.removeFirst(); show(url: n.url, from: n.from, preview: nil, auto: n.auto) }
     }
 
     @objc func cancel() { next() }
 
-    func show(url: String, from: URL? = nil, preview: String?) {
+    func show(url: String, from: URL? = nil, preview: String?, auto: Bool = false) {
         self.url = url
         host = URL(string: url)?.host.map(siteName) ?? ""
         profiles = loadProfiles()
@@ -598,6 +594,14 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let buttons = NSStackView(views: [cancel, manage])
         buttons.spacing = 10
         views.append(buttons)
+        let fallback = UserDefaults.standard.string(forKey: "defaultProfile")
+        let fallbackIndex = profiles.firstIndex { $0.name == fallback }
+        let fallbackApp = fallback.flatMap { $0.hasPrefix("app:") ? NSWorkspace.shared.urlForApplication(withBundleIdentifier: String($0.dropFirst(4))) : nil }
+        let countdown = NSTextField(labelWithString: "")
+        countdown.font = .systemFont(ofSize: 12, weight: .medium)
+        countdown.textColor = .secondaryLabelColor
+        let counting = (auto || preview != nil && CommandLine.arguments.contains("--auto")) && (fallbackIndex != nil || fallbackApp != nil)
+        if counting { countdown.stringValue = "Opening in \(savedTitle(fallback!)) in 2s · point here to stop"; views.append(countdown) }
         views.append(hint)
         let stack = NSStackView(views: views)
         stack.orientation = .vertical
@@ -656,8 +660,30 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         p.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         p.makeKey()
+        if counting { startCountdown(p, countdown, name: savedTitle(fallback!), index: fallbackIndex, app: fallbackApp) }
         // Nothing picked in 2 minutes: drop the link rather than leave a stray popup.
         DispatchQueue.main.asyncAfter(deadline: .now() + 120) { if self.panel === p { self.next() } }
+    }
+
+    // Opens the default profile after 2 s unless the pointer moves onto the popup first (a pointer already resting there doesn't count).
+    func startCountdown(_ p: NSPanel, _ label: NSTextField, name: String, index: Int?, app: URL?) {
+        let end = Date().addingTimeInterval(2), start = NSEvent.mouseLocation
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { t in
+            guard self.panel === p else { return t.invalidate() }
+            if NSEvent.mouseLocation != start && p.frame.contains(NSEvent.mouseLocation) {
+                label.stringValue = "Stopped · pick a profile"
+                return t.invalidate()
+            }
+            let left = end.timeIntervalSinceNow
+            guard left <= 0 else { label.stringValue = "Opening in \(name) in \(Int(left.rounded(.up)))s · point here to stop"; return }
+            t.invalidate()
+            if let index { self.choose(index) }
+            else if let app, let u = URL(string: self.url) {
+                self.next()
+                NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                countOpen()
+            }
+        }
     }
 
     func card(_ p: Profile, index: Int) -> NSView {
@@ -919,7 +945,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         if let last = rows.arrangedSubviews.last { rows.setCustomSpacing(16, after: last) }
         rows.addArrangedSubview(addRow)
 
-        let fallbackLabel = NSTextField(labelWithString: "Other links open in")
+        let fallbackLabel = NSTextField(labelWithString: "Other links, after 2s, open in")
         fallbackLabel.font = .systemFont(ofSize: 13)
         fallbackLabel.widthAnchor.constraint(equalToConstant: 200).isActive = true
         let current = UserDefaults.standard.string(forKey: "defaultProfile")
@@ -928,7 +954,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         if current == nil { fallbackPop.selectItem(at: 0) }
         fallbackPop.target = self
         fallbackPop.action = #selector(changeDefaultProfile(_:))
-        fallbackPop.toolTip = "Links with no saved site or app rule. Shift-click still asks."
+        fallbackPop.toolTip = "Links with no saved site or app rule show the popup, then open here after 2 seconds unless you point at it. Shift-click never counts down."
         let fallbackRow = NSStackView(views: [fallbackLabel, fallbackPop])
         fallbackRow.spacing = 10
         rows.setCustomSpacing(16, after: addRow)
