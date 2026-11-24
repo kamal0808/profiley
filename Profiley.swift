@@ -1,5 +1,5 @@
 // The default browser. A link to a saved site opens straight in its profile;
-// any other link (or any link while Shift or Option is held) shows a popup to pick one.
+// any other link opens in the chosen default, or shows a popup to pick one (always, while Shift or Option is held).
 import AppKit
 import ServiceManagement
 
@@ -454,6 +454,7 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         let all = loadProfiles()
         let from = openerApp()
         let appKey = from.flatMap(appRuleKey)
+        let fallback = forcePicker ? nil : UserDefaults.standard.string(forKey: "defaultProfile")
         for raw in urls {
             guard let (u, hint) = profileHint(raw) else { continue }
             if !forcePicker, let m = savedRule(u.absoluteString, appKey: appKey, in: sites),
@@ -473,6 +474,11 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
                 countOpen()
                 bringBrowserForward()
             } else if !forcePicker, let h = hint, let p = all.first(where: { $0.name.caseInsensitiveCompare(h) == .orderedSame }) {
+                openInBrowser(u.absoluteString, p)
+            } else if let d = fallback, d.hasPrefix("app:"), let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: String(d.dropFirst(4))) {
+                NSWorkspace.shared.open([u], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                countOpen()
+            } else if let d = fallback, let p = all.first(where: { $0.name == d }) {
                 openInBrowser(u.absoluteString, p)
             } else {
                 pending.append((u.absoluteString, from))
@@ -913,9 +919,24 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         if let last = rows.arrangedSubviews.last { rows.setCustomSpacing(16, after: last) }
         rows.addArrangedSubview(addRow)
 
+        let fallbackLabel = NSTextField(labelWithString: "Other links open in")
+        fallbackLabel.font = .systemFont(ofSize: 13)
+        fallbackLabel.widthAnchor.constraint(equalToConstant: 200).isActive = true
+        let current = UserDefaults.standard.string(forKey: "defaultProfile")
+        let fallbackPop = choiceMenu(selecting: current)
+        fallbackPop.insertItem(withTitle: "Ask every time", at: 0)
+        if current == nil { fallbackPop.selectItem(at: 0) }
+        fallbackPop.target = self
+        fallbackPop.action = #selector(changeDefaultProfile(_:))
+        fallbackPop.toolTip = "Links with no saved site or app rule. Shift-click still asks."
+        let fallbackRow = NSStackView(views: [fallbackLabel, fallbackPop])
+        fallbackRow.spacing = 10
+        rows.setCustomSpacing(16, after: addRow)
+        rows.addArrangedSubview(fallbackRow)
+
         let showIcon = NSButton(checkboxWithTitle: "Show Profiley in the menu bar", target: self, action: #selector(toggleStatusItem(_:)))
         showIcon.state = UserDefaults.standard.bool(forKey: "hideMenuBarIcon") ? .off : .on
-        rows.setCustomSpacing(20, after: addRow)
+        rows.setCustomSpacing(20, after: fallbackRow)
         rows.addArrangedSubview(showIcon)
 
         if !isDefaultBrowser() {
@@ -948,6 +969,11 @@ final class Picker: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDel
         var sites = loadSites()
         sites[site] = profile
         saveSites(sites)
+    }
+
+    @objc func changeDefaultProfile(_ sender: NSPopUpButton) {
+        if let v = sender.selectedItem?.representedObject as? String { UserDefaults.standard.set(v, forKey: "defaultProfile") }
+        else { UserDefaults.standard.removeObject(forKey: "defaultProfile") }
     }
 
     @objc func toggleReuseTab(_ sender: NSButton) {
